@@ -15,7 +15,8 @@ services:
     environment:
       - PASSWORD_FILE=/run/secrets/postgresql_password
     secrets:
-      - postgresql_password            
+      - postgresql_password  
+    command: --dev=reload  # Auto-reloads Python code changes          
   db:
     image: postgres:latest
     container_name: gobtechnologiesdb
