@@ -2,8 +2,59 @@ from odoo import api, fields, models
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta 
 import logging
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
+
+PAYMENT_STATE = [
+    ('draft', "Draft"),
+    ('paid', "Payment Completed"),
+    ('cancel', "Cancelled"),
+]
+
+class RepaymentProductLine(models.Model):
+    _name = 'repayment.product.line'
+    _description = 'Repayment Product Line'
+
+    product_id = fields.Many2one(
+        'product.product', 
+        string='Product', 
+        required=True
+    )
+    amount = fields.Integer(
+        string='Amount', 
+        required=True, 
+        default=1
+    )
+    price = fields.Float(
+        string='Price', 
+        compute='_compute_price',
+        store=True
+    )
+    repayment_id = fields.Many2one(
+        'repayment', 
+        string='Repayment', 
+        ondelete='cascade'
+    )
+
+    @api.depends('amount')
+    def _compute_price(self):
+        for record in self:
+            if record.amount and record.product_id:
+                record.price = record.amount * record.product_id.lst_price
+            else:
+                record.price = 0.0
+
+    @api.model
+    def _default_repayment_id(self):
+        return self.env.context.get('default_repayment_id')
+
+    @api.onchange('product_id')
+    def _onchange_product_id(self):
+        if self.product_id:
+            self.price = self.product_id.lst_price
+
+
 
 class Repayment(models.Model):
     _name = 'repayment'
@@ -11,7 +62,12 @@ class Repayment(models.Model):
 
     customer_name = fields.Many2one('res.partner', string='Customer Name', required=True)
     gps_location = fields.Char(string='GPS Location', required=True)
-    product = fields.Many2one('product.product', string='Product', required=True)
+    product_lines = fields.One2many(
+        'repayment.product.line',  # Related model
+        'repayment_id',  # Field in the related model pointing back to this model
+        string='Products',
+    )
+    # product = fields.Many2one('product.product', string='Product', required=True)
     plan = fields.Selection([
         ('30', '30 days'),
         ('60', '60 days'),
@@ -20,7 +76,7 @@ class Repayment(models.Model):
         ('cash', 'Cash')
     ], string='Plan', required=True)
     start_date = fields.Date(string='Start Date', required=True)
-    selling_price= fields.Float(string='Selling Price', required=True)
+    selling_price= fields.Float(string='Selling Price', compute='_compute_selling_price', store=True)
     deposit = fields.Float(string='Deposit', required=True)
     repayment = fields.Float(string='Repayment', required=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=True)
@@ -43,7 +99,43 @@ class Repayment(models.Model):
     paid_to_momo = fields.Float(string='Paid to Momo', required=True)
     guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
     guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
+    state = fields.Selection(
+        selection=PAYMENT_STATE,
+        string="Status",
+        readonly=True, copy=False, index=True,
+        tracking=3,
+        default='draft')
+    total_price = fields.Float(
+        string='Total Price', 
+        compute='_compute_total_price', 
+        store=True
+    )
+    currency_id = fields.Many2one(
+        'res.currency', 
+        string='Currency', 
+        default=lambda self: self.env.company.currency_id.id
+    )
 
+
+    # Ensure the product_lines field is not empty
+    @api.constrains('product_lines')
+    def _check_product_lines(self):
+        for record in self:
+            if not record.product_lines:
+                raise ValidationError("You must add at least one product before proceeding.")
+
+    # Update the total price and selling price upon update
+    @api.depends('product_lines.price', 'product_lines.amount')
+    def _compute_total_price(self):
+        for record in self:
+            record.total_price = sum(line.price * line.amount for line in record.product_lines)
+
+    @api.depends('product_lines.price', 'product_lines.amount')
+    def _compute_selling_price(self):
+        for record in self:
+            record.selling_price = sum(line.price * line.amount for line in record.product_lines)
+
+    # Computes the duration left
     @api.depends('repayment_date', 'end_date')
     def _compute_duration_left(self):
         for record in self:
@@ -53,7 +145,7 @@ class Repayment(models.Model):
             else:
                 record.duration_left = 0
 
-
+    # Computes the due date
     @api.depends('repayment_date', 'repayment_frequency')
     def _compute_due_date(self):
         for record in self:
@@ -76,7 +168,7 @@ class Repayment(models.Model):
             else:
                 record.due_date = False 
 
-
+    # Computes the reminder
     @api.depends('due_date')
     def _compute_reminder(self):
         today = fields.Date.today()
@@ -86,6 +178,7 @@ class Repayment(models.Model):
             else:
                 record.reminder = 'Not Due'
 
+    # Computes the total paid
     @api.depends('deposit', 'repayment')
     def _compute_total_paid(self):
         for record in self:
@@ -94,6 +187,7 @@ class Repayment(models.Model):
             else:
                 record.total_paid = 0
 
+    # Computes the outstnding loan
     @api.depends('selling_price', 'total_paid')
     def _compute_outstanding_loan(self):
         for record in self:
@@ -102,6 +196,7 @@ class Repayment(models.Model):
             else:
                 record.total_paid = 0
 
+    # computes the percentage paid
     @api.depends('selling_price', 'total_paid')
     def _compute_percentage_paid(self):
         for record in self:
@@ -111,7 +206,7 @@ class Repayment(models.Model):
                 record.percentage_paid = 0
 
 
-    
+    # Send Message to Customer
     def action_button_method(self):
         # Your method logic here
         return {
@@ -125,3 +220,8 @@ class Repayment(models.Model):
                 'position': 'bottom-right'
             }
         }
+
+    # Confirm Payment
+    def action_confirm_payment(self):
+        self.state = 'paid'
+        return True

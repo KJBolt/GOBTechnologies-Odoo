@@ -15,7 +15,7 @@
     ],
     'data': [
         'views/modify_meuitems.xml',
-        'views/repayment.xml'
+        'views/customer_statement_report.xml'
     ],
     'installable': True,
     'application': True,
