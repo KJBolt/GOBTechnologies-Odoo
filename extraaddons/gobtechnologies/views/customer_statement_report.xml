@@ -20,53 +20,13 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
-    <!-- <record id="view_repayment_form" model="ir.ui.view"> -->
-        <!-- <field name="name">Repayment Form</field>
-        <field name="model">repayment</field> -->
-        <!-- <field name="arch" type="xml"> -->
-            <!-- <form string="Repayment">
-                <sheet>
-                    <group>
-                        <field name="customer_name"/>
-                        <field name="gps_location"/>
-                    </group> -->
-
-                    <!-- <group>
-                        <field name="product"/>
-                        <field name="plan"/>
-                        <field name="start_date"/>
-                        <field name="selling_price"/>
-                    </group> -->
-
-                    <!-- <group>
-                        <field name="deposit"/>
-                        <field name="repayment"/>
-                        <field name="expected_to_pay"/>
-                        <field name="repayment_frequency"/>
-                    </group> -->
-
-                    <!-- <group>
-                        <field name="repayment_date"/>
-                        <field name="end_date"/> -->
-                        <!-- <field name="duration_left"/> -->
-                        <!-- <field name="due_date"/> -->
-                        <!-- <field name="reminder"/> -->
-                        <!-- <field name="total_paid"/> -->
-                        <!-- <field name="outstanding_loan"/> -->
-                        <!-- <field name="phone_no"/>
-                    </group> -->
-
-                    <!-- <group>
-                        <field name="penalty_discount"/> -->
-                        <!-- <field name="percentage_paid"/> -->
-                        <!-- <field name="paid_to_momo"/>
-                        <field name="guarantor_name"/>
-                        <field name="guarantor_contact"/> -->
-                    <!-- </group>
-                </sheet>
-            </form>
-        </field>
-    </record> -->
+    <record id="seq_repayment" model="ir.sequence">
+        <field name="name">Repayment Reference</field>
+        <field name="code">repayment.sequence</field>
+        <field name="prefix">RPY</field>  <!-- Prefix for repayment -->
+        <field name="padding">5</field>   <!-- Ensures numbers like 00001, 00002 -->
+        <field name="company_id" eval="False"/>
+    </record>
 
     <record id="view_repayment_form" model="ir.ui.view">
         <field name="name">Repayment Form</field>
@@ -79,7 +39,7 @@
                         string="Confirm" class="btn-primary" type="object"
                         invisible="state == 'paid'"
                     />
-                    <field name="state" widget="statusbar" statusbar_visible="draft,paid"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,progress,paid"/>
                 </header>
                 <sheet>
                     <group name="repayment_header">
@@ -107,9 +67,9 @@
                         </group>
                         <group name="other_details">
                             <div class="o_td_label" groups="base.group_no_one">
-                                <label for="repayment" string="Repaymet"/>
+                                <label for="end_date" string="End Date"/>
                             </div>
-                            <field name="repayment" nolabel="1" readonly="state in ['cancel', 'paid']"/>
+                            <field name="end_date" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                             <div class="o_td_label">
                                 <label for="expected_to_pay" string="Expected To Pay"/>
@@ -134,7 +94,7 @@
                                 <group name="others_header">
                                     <group name="others_details">
                                         <field name="repayment_date" readonly="state in ['cancel', 'paid']"/>
-                                        <field name="end_date" readonly="state in ['cancel', 'paid']"/>
+                                        <field name="repayment" readonly="state in ['cancel', 'paid']"/>
                                     </group>
                                     <group name="others_details">
                                         <div class="o_td_label" groups="base.group_no_one">
@@ -178,7 +138,7 @@
                         <group class="oe_subtotal_footer" colspan="2" name="total_price">
                             <field name="currency_id" invisible="1"/>
                             <div style="display:flex; align-items:center;">
-                                <div style="margin-right: 30px;">Total:</div>
+                                <div style="margin-right: 35px;">Total:</div>
                                 <field name="total_price" widget="monetary" options="{'currency_field': 'currency_id'}" style="font-size: 20px" class="fw-bolder"/>
                             </div>
                         </group>
@@ -194,6 +154,7 @@
         <field name="model">repayment</field>
         <field name="arch" type="xml">
             <tree string="Repayment">
+                <field name="unique_id"/>
                 <field name="customer_name"/>
                 <field name="gps_location"/>
                 <field name="product_lines" widget="badge"/>
@@ -229,10 +190,16 @@
     </record>
 
     <menuitem 
+        id="menu_repayment_root" 
+        name="GOB System"
+        sequence="1"
+    />
+
+    <menuitem 
         id="menu_repayment" 
         name="Customer Statement Report"
+        parent="menu_repayment_root"
         action="action_repayment"
-        sequence="1"
     />
 
 </odoo>

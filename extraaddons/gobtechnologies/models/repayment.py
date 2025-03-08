@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import api, fields, models, _
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta 
 import logging
@@ -8,6 +8,7 @@ _logger = logging.getLogger(__name__)
 
 PAYMENT_STATE = [
     ('draft', "Draft"),
+    ('progress', "Payment in Progress"),
     ('paid', "Payment Completed"),
     ('cancel', "Cancelled"),
 ]
@@ -60,6 +61,11 @@ class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
 
+    unique_id = fields.Char(
+        string="Reference",
+        required=True, copy=False, readonly=True, index=True,
+        default=lambda self: _('New')
+    )
     customer_name = fields.Many2one('res.partner', string='Customer Name', required=True)
     gps_location = fields.Char(string='GPS Location', required=True)
     product_lines = fields.One2many(
@@ -78,7 +84,7 @@ class Repayment(models.Model):
     start_date = fields.Date(string='Start Date', required=True)
     selling_price= fields.Float(string='Selling Price', compute='_compute_selling_price', store=True)
     deposit = fields.Float(string='Deposit', required=True)
-    repayment = fields.Float(string='Repayment', required=True)
+    repayment = fields.Float(string='Repayment Amount', required=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=True)
     repayment_frequency = fields.Selection([
         ('1', 'Daily'),
@@ -115,6 +121,14 @@ class Repayment(models.Model):
         string='Currency', 
         default=lambda self: self.env.company.currency_id.id
     )
+
+    # Set state to progress and generate a unique id for repayment when record is created
+    @api.model
+    def create(self, vals):
+        vals['state'] = 'progress'
+        if vals.get('unique_id', _('New')) == _('New'):
+            vals['unique_id'] = self.env['ir.sequence'].next_by_code('repayment.sequence') or _('New')
+        return super(Repayment, self).create(vals)
 
 
     # Ensure the product_lines field is not empty
