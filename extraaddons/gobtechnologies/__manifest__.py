@@ -15,7 +15,9 @@
     ],
     'data': [
         'views/modify_meuitems.xml',
-        'views/customer_statement_report.xml'
+        'views/customer_statement_report.xml',
+        'security/groups.xml',
+        'security/ir.model.access.csv',
     ],
     'installable': True,
     'application': True,

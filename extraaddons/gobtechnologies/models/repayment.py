@@ -10,8 +10,24 @@ PAYMENT_STATE = [
     ('draft', "Draft"),
     ('progress', "Payment in Progress"),
     ('paid', "Payment Completed"),
-    ('cancel', "Cancelled"),
 ]
+
+class RepaymentPaymentLine(models.Model):
+    _name = 'repayment.payment.line'
+    _description = 'Repayment Payment Line'
+
+    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade')
+    payment_date = fields.Date(string='Date of Payment', required=True)
+    payment_mode = fields.Selection([
+        ('cash', 'Cash'),
+        ('momo', 'Mobile Money'),
+        ('cheque', 'Cheque'),
+        ('bank', 'Bank Transfer')
+    ], string='Mode of Payment', required=True)
+    payment_amount = fields.Float(string='Payment Amount', required=True)
+    payment_date = fields.Date(string='Payment Date', required=True)
+    
+
 
 class RepaymentProductLine(models.Model):
     _name = 'repayment.product.line'
@@ -73,7 +89,11 @@ class Repayment(models.Model):
         'repayment_id',  # Field in the related model pointing back to this model
         string='Products',
     )
-    # product = fields.Many2one('product.product', string='Product', required=True)
+    payment_lines = fields.One2many(
+        'repayment.payment.line',  # Related model
+        'repayment_id',  # Field in the related model pointing back to this model
+        string='Payments',
+    )
     plan = fields.Selection([
         ('30', '30 days'),
         ('60', '60 days'),
@@ -84,7 +104,7 @@ class Repayment(models.Model):
     start_date = fields.Date(string='Start Date', required=True)
     selling_price= fields.Float(string='Selling Price', compute='_compute_selling_price', store=True)
     deposit = fields.Float(string='Deposit', required=True)
-    repayment = fields.Float(string='Repayment Amount', required=True)
+    repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=True)
     repayment_frequency = fields.Selection([
         ('1', 'Daily'),
@@ -108,8 +128,6 @@ class Repayment(models.Model):
     state = fields.Selection(
         selection=PAYMENT_STATE,
         string="Status",
-        readonly=True, copy=False, index=True,
-        tracking=3,
         default='draft')
     total_price = fields.Float(
         string='Total Price', 
@@ -122,6 +140,12 @@ class Repayment(models.Model):
         default=lambda self: self.env.company.currency_id.id
     )
 
+    # Compute the repayment amount
+    @api.depends('payment_lines.payment_amount')
+    def _compute_repayment(self):
+        for rec in self:
+            rec.repayment = sum(rec.payment_lines.mapped('payment_amount'))
+
     # Set state to progress and generate a unique id for repayment when record is created
     @api.model
     def create(self, vals):
@@ -129,6 +153,12 @@ class Repayment(models.Model):
         if vals.get('unique_id', _('New')) == _('New'):
             vals['unique_id'] = self.env['ir.sequence'].next_by_code('repayment.sequence') or _('New')
         return super(Repayment, self).create(vals)
+
+    # update state when record is updated
+    def write(self, vals):
+        if 'state' not in vals:  # Only override if state is not being explicitly changed
+            vals['state'] = 'progress'
+        return super(Repayment, self).write(vals)
 
 
     # Ensure the product_lines field is not empty
@@ -239,3 +269,9 @@ class Repayment(models.Model):
     def action_confirm_payment(self):
         self.state = 'paid'
         return True
+
+    # Cancel Button
+    def action_cancel(self):
+        self.state = 'draft'
+        return True
+

@@ -20,6 +20,16 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
+    <record id="access_repayment_payment_line" model="ir.model.access">
+        <field name="name">Repayment Payment Line</field>
+        <field name="model_id" ref="model_repayment_payment_line"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
     <record id="seq_repayment" model="ir.sequence">
         <field name="name">Repayment Reference</field>
         <field name="code">repayment.sequence</field>
@@ -35,9 +45,12 @@
             <form string="Repayment">
                 <header>
                     <button 
-                        name="action_confirm_payment" id="action_confirm_payment"
+                        name="action_confirm_payment" id="action_confirm_payment" groups="gobtechnologies.group_repayment_accounts"
                         string="Confirm" class="btn-primary" type="object"
-                        invisible="state == 'paid'"
+                        invisible="state in ['paid']"
+                    />
+                    <button name="action_cancel" type="object" string="Cancel" 
+                        invisible="state in ['draft', 'progress']" groups="gobtechnologies.group_repayment_accounts"
                     />
                     <field name="state" widget="statusbar" statusbar_visible="draft,progress,paid"/>
                 </header>
@@ -87,6 +100,21 @@
                                     <field name="price"/>
                                 </tree>
                             </field>
+
+                            <!-- Footer Total Price -->
+                            <group name="note_group" col="6" class="mt-2 mt-md-0">
+                                <group colspan="3">
+                                    <!-- <field colspan="2" name="note" nolabel="1" placeholder="Terms and conditions..."/> -->
+                                </group>
+                                <group class="oe_subtotal_footer" colspan="2" name="total_price">
+                                    <field name="currency_id" invisible="1"/>
+                                    <div style="display:flex; align-items:center;">
+                                        <div style="margin-right: 35px;">Total</div>
+                                        <field name="total_price" widget="monetary" options="{'currency_field': 'currency_id'}" style="font-size: 20px" class="fw-bolder"/>
+                                    </div>
+                                </group>
+                                <div class="clearfix"/>
+                            </group>
                         </page>
 
                         <page string="Other Details" name="Other Details">
@@ -94,7 +122,7 @@
                                 <group name="others_header">
                                     <group name="others_details">
                                         <field name="repayment_date" readonly="state in ['cancel', 'paid']"/>
-                                        <field name="repayment" readonly="state in ['cancel', 'paid']"/>
+                                        <field name="repayment" readonly="state in ['progress', 'paid', 'draft']"/>
                                     </group>
                                     <group name="others_details">
                                         <div class="o_td_label" groups="base.group_no_one">
@@ -128,22 +156,17 @@
                                 </group>
                             </sheet>
                         </page>
-                    </notebook>
 
-                    <!-- Footer Total Price -->
-                    <group name="note_group" col="6" class="mt-2 mt-md-0">
-                        <group colspan="3">
-                            <!-- <field colspan="2" name="note" nolabel="1" placeholder="Terms and conditions..."/> -->
-                        </group>
-                        <group class="oe_subtotal_footer" colspan="2" name="total_price">
-                            <field name="currency_id" invisible="1"/>
-                            <div style="display:flex; align-items:center;">
-                                <div style="margin-right: 35px;">Total:</div>
-                                <field name="total_price" widget="monetary" options="{'currency_field': 'currency_id'}" style="font-size: 20px" class="fw-bolder"/>
-                            </div>
-                        </group>
-                        <div class="clearfix"/>
-                    </group>
+                        <page string="Payment Details" name="Payment Details" groups="gobtechnologies.group_repayment_accounts">
+                            <field name="payment_lines" readonly="state in ['cancel', 'paid']">
+                                <tree editable="bottom">
+                                    <field name="payment_date"/>
+                                    <field name="payment_mode"/>
+                                    <field name="payment_amount" sum="Payment Amount"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
