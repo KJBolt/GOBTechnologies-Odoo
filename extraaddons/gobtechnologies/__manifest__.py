@@ -18,10 +18,14 @@
         'views/customer_statement_report.xml',
         'security/groups.xml',
         'security/ir.model.access.csv',
+
     ],
     'installable': True,
     'application': True,
     'assets': {
+        'web.assets_frontend': [
+            'gobtechnologies/static/src/js/hubtel_payment.js',
+        ],
         'web.assets_backend': [],
     },
     'license': 'LGPL-3',

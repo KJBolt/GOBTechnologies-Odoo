@@ -61,7 +61,7 @@
                             <field name="plan" readonly="state in ['cancel', 'paid']"/>
                         </group>
                         <group name="other_details">
-                            <div class="o_td_label" groups="base.group_no_one">
+                            <div class="o_td_label">
                                 <label for="gps_location" string="Gps Location"/>
                             </div>
                             <field name="gps_location" placeholder="Enter your location..." nolabel="1" readonly="state in ['cancel', 'paid']"/>
@@ -79,7 +79,7 @@
                             <field name="deposit" readonly="state in ['cancel', 'paid']"/>
                         </group>
                         <group name="other_details">
-                            <div class="o_td_label" groups="base.group_no_one">
+                            <div class="o_td_label">
                                 <label for="end_date" string="End Date"/>
                             </div>
                             <field name="end_date" nolabel="1" readonly="state in ['cancel', 'paid']"/>
@@ -125,7 +125,7 @@
                                         <field name="repayment" readonly="state in ['progress', 'paid', 'draft']"/>
                                     </group>
                                     <group name="others_details">
-                                        <div class="o_td_label" groups="base.group_no_one">
+                                        <div class="o_td_label">
                                             <label for="repayment_frequency" string="Repayment Frequency"/>
                                         </div>
                                         <field name="repayment_frequency" nolabel="1" readonly="state in ['cancel', 'paid']"/>
@@ -143,7 +143,7 @@
                                         <field name="paid_to_momo" readonly="state in ['cancel', 'paid']"/>
                                     </group>
                                     <group name="others_details">
-                                        <div class="o_td_label" groups="base.group_no_one">
+                                        <div class="o_td_label">
                                             <label for="guarantor_contact" string="Guarantor's Contact"/>
                                         </div>
                                         <field name="guarantor_contact" nolabel="1" readonly="state in ['cancel', 'paid']"/>
@@ -225,4 +225,37 @@
         action="action_repayment"
     />
 
+    <menuitem 
+        id="menu_contact" 
+        name="Contacts"
+        parent="menu_repayment_root"
+        action="contacts.action_contacts"
+    />
+    
+    <menuitem
+        id="menu_products"
+        name="Products"
+        parent="menu_repayment_root"
+        action="sale.product_template_action"
+    />
+
+    <menuitem
+        id="menu_invoicing"
+        name="Invoicing"
+        parent="menu_repayment_root"
+    />
+
+    <menuitem
+        id="menu_invoice"
+        name="Invoice"
+        parent="menu_invoicing"
+        action="account.action_move_out_invoice_type"
+    />
+
+    <menuitem
+        id="menu_invoice_payment"
+        name="Payment"
+        parent="menu_invoicing"
+        action="account.action_account_payments"
+    />
 </odoo>
