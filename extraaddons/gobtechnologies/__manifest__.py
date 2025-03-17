@@ -23,9 +23,7 @@
     'installable': True,
     'application': True,
     'assets': {
-        'web.assets_frontend': [
-            'gobtechnologies/static/src/js/hubtel_payment.js',
-        ],
+        'web.assets_frontend': [],
         'web.assets_backend': [],
     },
     'license': 'LGPL-3',

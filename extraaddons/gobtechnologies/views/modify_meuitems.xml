@@ -16,24 +16,24 @@
     </record>
 
     <!-- Hide Invoicing Menu Item -->
-    <record id="account.menu_finance" model="ir.ui.menu">
+    <!-- <record id="account.menu_finance" model="ir.ui.menu">
         <field name="active">False</field>
-    </record>
+    </record> -->
 
     <!-- Hide Inventory Menu Item -->
-    <record id="stock.menu_stock_root" model="ir.ui.menu">
+    <!-- <record id="stock.menu_stock_root" model="ir.ui.menu">
         <field name="active">False</field>
-    </record>
+    </record> -->
 
     <!-- Hide Purchase Menu Item -->
-    <record id="purchase.menu_purchase_root" model="ir.ui.menu">
+    <!-- <record id="purchase.menu_purchase_root" model="ir.ui.menu">
         <field name="active">False</field>
-    </record>
+    </record> -->
 
     <!-- Hide Sales Menu Item -->
-    <record id="sale.sale_menu_root" model="ir.ui.menu">
+    <!-- <record id="sale.sale_menu_root" model="ir.ui.menu">
         <field name="active">False</field>
-    </record>
+    </record> -->
 
     <!-- Hide Link Tracker Menu Item -->
     <record id="utm.menu_link_tracker_root" model="ir.ui.menu">
