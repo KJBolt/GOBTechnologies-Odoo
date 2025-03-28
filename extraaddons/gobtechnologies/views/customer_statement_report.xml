@@ -225,37 +225,4 @@
         action="action_repayment"
     />
 
-    <menuitem 
-        id="menu_contact" 
-        name="Contacts"
-        parent="menu_repayment_root"
-        action="contacts.action_contacts"
-    />
-    
-    <menuitem
-        id="menu_products"
-        name="Products"
-        parent="menu_repayment_root"
-        action="sale.product_template_action"
-    />
-
-    <menuitem
-        id="menu_invoicing"
-        name="Invoicing"
-        parent="menu_repayment_root"
-    />
-
-    <menuitem
-        id="menu_invoice"
-        name="Invoice"
-        parent="menu_invoicing"
-        action="account.action_move_out_invoice_type"
-    />
-
-    <menuitem
-        id="menu_invoice_payment"
-        name="Payment"
-        parent="menu_invoicing"
-        action="account.action_account_payments"
-    />
 </odoo>

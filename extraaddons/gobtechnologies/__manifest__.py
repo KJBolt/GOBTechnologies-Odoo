@@ -16,6 +16,7 @@
     'data': [
         'views/modify_meuitems.xml',
         'views/customer_statement_report.xml',
+        'views/hubtel_webhook.xml',
         'security/groups.xml',
         'security/ir.model.access.csv',
 
@@ -24,7 +25,10 @@
     'application': True,
     'assets': {
         'web.assets_frontend': [],
-        'web.assets_backend': [],
+        'web.assets_backend': [
+            'gobtechnologies/static/src/js/static/src/js/hubtel_notification_systray.js',
+            'gobtechnologies/static/src/xml/hubtel_notification_systray.xml',
+        ],
     },
     'license': 'LGPL-3',
 }
