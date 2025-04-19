@@ -57,3 +57,53 @@ nav,
 .download-button {
     white-space: nowrap; /* Prevents text from breaking into multiple lines */
 }
+
+.o_payment_dashboard_wrapper {
+    height: calc(100vh - 80px); // Adjust the height based on your navbar height
+    overflow-y: auto;
+    position: relative;
+
+    // Custom scrollbar styling
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+        
+        &:hover {
+            background: #555;
+        }
+    }
+
+    // For Firefox
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+
+    .o_payment_dashboard {
+        min-height: 100%;
+    }
+
+    // Make cards more compact on smaller screens
+    @media (max-width: 768px) {
+        .card {
+            margin-bottom: 1rem;
+        }
+        
+        .row {
+            margin-bottom: 0 !important;
+        }
+    }
+}
+
+// Ensure charts are responsive
+canvas {
+    max-width: 100%;
+    height: auto !important;
+}

@@ -7,10 +7,10 @@
     'author': 'GeoIworks',
     'images': [],
     'depends': [
-        'base_setup',
+        'base',
         'web',
-        'base', 
-        'contacts', 
+        'base_setup',
+        'contacts',
         'stock'
     ],
     'data': [
@@ -29,6 +29,8 @@
             'gobtechnologies/static/src/scss/custom_styles.scss',
             'gobtechnologies/static/src/js/static/src/js/hubtel_notification_systray.js',
             'gobtechnologies/static/src/xml/hubtel_notification_systray.xml',
+            'gobtechnologies/static/src/js/dashboard.js',
+            'gobtechnologies/static/src/xml/dashboard.xml',
         ],
     },
     'license': 'LGPL-3',

@@ -208,6 +208,21 @@
                                 <field name="total_paid" nolabel="1" class="oe_subtotal_footer_separator" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                             </group>
                         </page>
+
+                        <page string="Payment Compliance Overview" name="payment_compliance">
+                            <field name="payment_lines" readonly="1" domain="[('is_payment_insufficient', '=', True)]">
+                                <tree>
+                                    <field name="payment_date"/>
+                                    <field name="expected_amount"/>
+                                    <field name="payment_amount" string="Amount Paid"/>
+                                    <field name="payment_status" 
+                                        decoration-danger="payment_status == 'Underpaid'"
+                                        decoration-success="payment_status == 'Fully Paid'"
+                                        decoration-info="payment_status == 'Overpaid'"
+                                    />
+                                </tree>
+                            </field>
+                        </page>
                     </notebook>
                 </sheet>
             </form>
@@ -310,5 +325,26 @@
         action="action_chart_page"
     /> -->
 
-    
+    <!-- Client Action for Dashboard -->
+    <record id="action_payment_dashboard" model="ir.actions.client">
+        <field name="name">Payment Analytics</field>
+        <field name="tag">gobtechnologies.payment_dashboard</field>
+    </record>
+
+    <!-- Reports Menu -->
+    <menuitem 
+        id="menu_reports_root" 
+        name="Reports"
+        parent="menu_repayment_root"
+        sequence="20"
+    />
+
+    <!-- Dashboard Submenu -->
+    <menuitem 
+        id="menu_payment_dashboard"
+        name="Payment Analytics"
+        parent="menu_reports_root"
+        action="action_payment_dashboard"
+        sequence="1"
+    />
 </odoo>

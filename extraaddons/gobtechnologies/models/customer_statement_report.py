@@ -31,12 +31,39 @@ class RepaymentPaymentLine(models.Model):
         compute='_compute_is_payment_insufficient',
         store=True
     )
+    payment_status = fields.Char(
+        string='Status',
+        compute='_compute_payment_status',
+        store=True
+    )
+
+    # This field is needed for underpayment expected to pay field
+    expected_amount = fields.Float(
+        string='Expected Amount',
+        related='repayment_id.expected_to_pay',
+        store=True
+    )
+
+
 
     # Check if payment is insufficient and change the payment amount color to red
     @api.depends('payment_amount', 'repayment_id.expected_to_pay')
     def _compute_is_payment_insufficient(self):
         for record in self:
             record.is_payment_insufficient = record.payment_amount < record.repayment_id.expected_to_pay
+
+    @api.depends('payment_amount', 'repayment_id.expected_to_pay')
+    def _compute_payment_status(self):
+        for record in self:
+            if record.payment_amount > record.repayment_id.expected_to_pay:
+                record.payment_status = 'Overpaid'
+                record.is_payment_insufficient = False
+            elif record.payment_amount < record.repayment_id.expected_to_pay:
+                record.payment_status = 'Underpaid'
+                record.is_payment_insufficient = True
+            else:
+                record.payment_status = 'Fully Paid'
+                record.is_payment_insufficient = False
 
     @api.model
     def create(self, vals):
@@ -54,6 +81,42 @@ class RepaymentPaymentLine(models.Model):
         if repayment.outstanding_loan <= 0:
             repayment.write({'state': 'paid'})
         return res
+
+    @api.model
+    def get_payment_status_distribution(self):
+        """Get the distribution of payment statuses"""
+        domain = [('payment_date', '>=', fields.Date.today() - relativedelta(months=1))]
+        fully_paid = self.search_count(domain + [('is_payment_insufficient', '=', False)])
+        underpaid = self.search_count(domain + [('is_payment_insufficient', '=', True)])
+        return {
+            'fully_paid': fully_paid,
+            'underpaid': underpaid
+        }
+
+    # For Dashboard Report
+    @api.model
+    def get_monthly_collections(self):
+        """Get monthly collection trends"""
+        start_date = fields.Date.today() - relativedelta(months=6)
+        
+        # Group by month and sum amounts
+        self.env.cr.execute("""
+            SELECT 
+                date_trunc('month', payment_date) as month,
+                SUM(payment_amount) as actual,
+                SUM(expected_amount) as expected
+            FROM repayment_payment_line
+            WHERE payment_date >= %s
+            GROUP BY date_trunc('month', payment_date)
+            ORDER BY month
+        """, (start_date,))
+        
+        results = self.env.cr.dictfetchall()
+        return {
+            'months': [r['month'].strftime('%B %Y') for r in results],
+            'actual': [r['actual'] for r in results],
+            'expected': [r['expected'] for r in results]
+        }
 
 
 class RepaymentProductLine(models.Model):
@@ -388,6 +451,106 @@ class Repayment(models.Model):
                 'sticky': True,
                 'type': 'info',
                 'position': 'bottom-right'
+            }
+        }
+
+    @api.model
+    def get_dashboard_data(self):
+        """Get all dashboard data in one call"""
+        PaymentLine = self.env['repayment.payment.line']
+        
+        # Payment Status Distribution
+        payment_status = PaymentLine.get_payment_status_distribution()
+        
+        # Monthly Collections
+        today = fields.Date.today()
+        start_date = today - relativedelta(months=6)
+        
+        self.env.cr.execute("""
+            SELECT 
+                to_char(date_trunc('month', payment_date), 'Month') as month,
+                SUM(payment_amount) as actual_amount,
+                COUNT(*) as payment_count
+            FROM repayment_payment_line
+            WHERE payment_date >= %s
+            GROUP BY date_trunc('month', payment_date)
+            ORDER BY date_trunc('month', payment_date)
+        """, (start_date,))
+        
+        collections_data = self.env.cr.dictfetchall()
+        collections = {
+            'months': [row['month'].strip() for row in collections_data],
+            'actual': [row['actual_amount'] for row in collections_data],
+            'expected': [row['actual_amount'] * 1.1 for row in collections_data]  # Example: expected is 10% more
+        }
+        
+        # Payment Plan Distribution
+        self.env.cr.execute("""
+            SELECT repayment_frequency as plan, COUNT(*) as count
+            FROM repayment
+            WHERE state != 'cancel'
+            GROUP BY repayment_frequency
+        """)
+        plan_distribution = {
+            'labels': [],
+            'data': []
+        }
+        for row in self.env.cr.dictfetchall():
+            plan_distribution['labels'].append(f"{row['plan']} days")
+            plan_distribution['data'].append(row['count'])
+
+        # Outstanding Loans by Duration
+        self.env.cr.execute("""
+            SELECT 
+                CASE 
+                    WHEN duration_left <= 30 THEN '0-30 days'
+                    WHEN duration_left <= 60 THEN '31-60 days'
+                    WHEN duration_left <= 90 THEN '61-90 days'
+                    ELSE '90+ days'
+                END as duration_range,
+                COUNT(*) as count,
+                SUM(outstanding_loan) as total_outstanding
+            FROM repayment
+            WHERE state != 'cancel' AND outstanding_loan > 0
+            GROUP BY 
+                CASE 
+                    WHEN duration_left <= 30 THEN '0-30 days'
+                    WHEN duration_left <= 60 THEN '31-60 days'
+                    WHEN duration_left <= 90 THEN '61-90 days'
+                    ELSE '90+ days'
+                END
+            ORDER BY duration_range
+        """)
+        outstanding_by_duration = {
+            'labels': [],
+            'counts': [],
+            'amounts': []
+        }
+        for row in self.env.cr.dictfetchall():
+            outstanding_by_duration['labels'].append(row['duration_range'])
+            outstanding_by_duration['counts'].append(row['count'])
+            outstanding_by_duration['amounts'].append(row['total_outstanding'])
+
+        # Payment Compliance Stats
+        self.env.cr.execute("""
+            SELECT 
+                COUNT(*) as total_payments,
+                SUM(CASE WHEN is_payment_insufficient THEN 1 ELSE 0 END) as underpaid_count,
+                SUM(CASE WHEN payment_amount > expected_amount THEN 1 ELSE 0 END) as overpaid_count
+            FROM repayment_payment_line
+            WHERE payment_date >= CURRENT_DATE - INTERVAL '30 days'
+        """)
+        compliance_stats = self.env.cr.dictfetchone()
+
+        return {
+            'payment_status': payment_status,
+            'collections': collections,
+            'plan_distribution': plan_distribution,
+            'outstanding_by_duration': outstanding_by_duration,
+            'compliance_stats': compliance_stats or {
+                'total_payments': 0,
+                'underpaid_count': 0,
+                'overpaid_count': 0
             }
         }
 

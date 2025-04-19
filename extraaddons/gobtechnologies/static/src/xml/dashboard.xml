@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="gobtechnologies.PaymentDashboard">
+        <div class="o_payment_dashboard_wrapper">
+            <div class="o_payment_dashboard container-fluid p-4">
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h6 class="card-title">Total Payments (30 days)</h6>
+                                <h2 class="card-text" t-esc="state.complianceStats.total_payments"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <h6 class="card-title">Underpaid Payments</h6>
+                                <h2 class="card-text" t-esc="state.complianceStats.underpaid_count"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h6 class="card-title">Overpaid Payments</h6>
+                                <h2 class="card-text" t-esc="state.complianceStats.overpaid_count"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h6 class="card-title">Compliance Rate</h6>
+                                <h2 class="card-text">
+                                    <t t-esc="Math.round((state.complianceStats.total_payments - state.complianceStats.underpaid_count) / state.complianceStats.total_payments * 100)"/>%
+                                </h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 1 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Repayment Frequency Distribution</h5>
+                                <canvas t-ref="planDistribution"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Monthly Collection Trends</h5>
+                                <canvas t-ref="collectionTrends"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 2 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Payment Status Distribution</h5>
+                                <canvas t-ref="paymentStatusPie"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Outstanding Loans by Duration</h5>
+                                <canvas t-ref="outstandingByDuration"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>
+
+
