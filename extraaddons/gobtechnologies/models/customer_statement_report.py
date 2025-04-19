@@ -16,7 +16,7 @@ class RepaymentPaymentLine(models.Model):
     _name = 'repayment.payment.line'
     _description = 'Repayment Payment Line'
 
-    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade')
+    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', invisible=True)
     payment_date = fields.Date(string='Date of Payment', required=True)
     payment_mode = fields.Selection([
         ('cash', 'Cash'),
@@ -26,7 +26,34 @@ class RepaymentPaymentLine(models.Model):
     ], string='Mode of Payment', required=True)
     payment_amount = fields.Float(string='Payment Amount', required=True)
     payment_date = fields.Date(string='Payment Date', required=True)
-    
+    is_payment_insufficient = fields.Boolean(
+        string='Payment Insufficient',
+        compute='_compute_is_payment_insufficient',
+        store=True
+    )
+
+    # Check if payment is insufficient and change the payment amount color to red
+    @api.depends('payment_amount', 'repayment_id.expected_to_pay')
+    def _compute_is_payment_insufficient(self):
+        for record in self:
+            record.is_payment_insufficient = record.payment_amount < record.repayment_id.expected_to_pay
+
+    @api.model
+    def create(self, vals):
+        res = super(RepaymentPaymentLine, self).create(vals)
+        # Check and update state after payment
+        repayment = res.repayment_id
+        if repayment.outstanding_loan <= 0:
+            repayment.write({'state': 'paid'})
+        return res
+
+    def write(self, vals):
+        res = super(RepaymentPaymentLine, self).write(vals)
+        # Check and update state after payment
+        repayment = self.repayment_id
+        if repayment.outstanding_loan <= 0:
+            repayment.write({'state': 'paid'})
+        return res
 
 
 class RepaymentProductLine(models.Model):
@@ -102,7 +129,7 @@ class Repayment(models.Model):
         ('cash', 'Cash')
     ], string='Plan', required=True)
     start_date = fields.Date(string='Start Date', required=True)
-    selling_price= fields.Float(string='Selling Price', compute='_compute_selling_price', store=True)
+    selling_price= fields.Float(string='Selling Price', store=True)
     deposit = fields.Float(string='Deposit', required=True)
     repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=True)
@@ -112,17 +139,22 @@ class Repayment(models.Model):
         ('30', 'Monthly'),
         ('0', 'Cash')
     ], string='Repayment Frequency', required=True)
-    repayment_date = fields.Date(string='Repayment Date', required=True)
+    repayment_date = fields.Date(
+        string='Repayment Date',
+        compute='_compute_repayment_date',
+        store=True
+    )
     end_date = fields.Date(string='End Date', required=True)
     duration_left = fields.Integer(string='Duration Left', compute='_compute_duration_left', store=True)
     due_date = fields.Date(string='Due Date', compute='_compute_due_date', store=True)
     reminder = fields.Char(string='Reminder', compute='_compute_reminder', store=True)
     total_paid = fields.Float(string='Total Paid', compute='_compute_total_paid', store=True)
-    outstanding_loan = fields.Float(string='Outstanding Loan', compute='_compute_outstanding_loan', store=True)
+    outstanding_loan = fields.Float(string='Outstanding Debt', compute='_compute_outstanding_loan', store=True)
     phone_no = fields.Char(string='Phone No', required=True)
-    penalty_discount = fields.Integer(string='Penalty / Discount', required=True)
+    penalty = fields.Integer(string='Penalty')
+    discount = fields.Integer(string='Discount')
     percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=True)
-    paid_to_momo = fields.Float(string='Paid to Momo', required=True)
+    paid_to_momo = fields.Float(string='Paid to Momo')
     guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
     guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
     state = fields.Selection(
@@ -138,6 +170,11 @@ class Repayment(models.Model):
         'res.currency', 
         string='Currency', 
         default=lambda self: self.env.company.currency_id.id
+    )
+    is_payment_missed = fields.Boolean(
+        string='Payment Missed',
+        compute='_compute_payment_missed',
+        store=True
     )
 
     # Compute the repayment amount
@@ -174,10 +211,6 @@ class Repayment(models.Model):
         for record in self:
             record.total_price = sum(line.price * line.amount for line in record.product_lines)
 
-    @api.depends('product_lines.price', 'product_lines.amount')
-    def _compute_selling_price(self):
-        for record in self:
-            record.selling_price = sum(line.price * line.amount for line in record.product_lines)
 
     # Computes the duration left
     @api.depends('repayment_date', 'end_date')
@@ -229,16 +262,19 @@ class Repayment(models.Model):
             if record.deposit and record.repayment:
                 record.total_paid = record.deposit + record.repayment
             else:
-                record.total_paid = 0
+                record.total_paid = 0.0
 
     # Computes the outstnding loan
-    @api.depends('selling_price', 'total_paid')
+    @api.depends('selling_price', 'total_paid', 'deposit')
     def _compute_outstanding_loan(self):
         for record in self:
             if record.selling_price and record.total_paid:
                 record.outstanding_loan = record.selling_price - record.total_paid
+            elif record.selling_price and record.deposit and not record.total_paid:
+                record.outstanding_loan = record.selling_price - record.deposit
             else:
-                record.total_paid = 0
+                record.total_paid = 0.0
+
 
     # computes the percentage paid
     @api.depends('selling_price', 'total_paid')
@@ -274,4 +310,84 @@ class Repayment(models.Model):
     def action_cancel(self):
         self.state = 'draft'
         return True
+
+    # Computes the next repayment date
+    @api.depends('start_date', 'repayment_frequency', 'payment_lines.payment_date')
+    def _compute_repayment_date(self):
+        for record in self:
+            if not record.start_date or not record.repayment_frequency:
+                record.repayment_date = False
+                continue
+
+            # Find the last payment date
+            last_payment = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)[:1]
+            base_date = last_payment.payment_date if last_payment else record.start_date
+
+            # Calculate next repayment date based on frequency
+            if record.repayment_frequency == '1':  # Daily
+                record.repayment_date = base_date + timedelta(days=1)
+            elif record.repayment_frequency == '14':  # Weekly
+                record.repayment_date = base_date + timedelta(days=7)
+            elif record.repayment_frequency == '30':  # Monthly
+                record.repayment_date = base_date + timedelta(days=30)
+            else:  # Cash
+                record.repayment_date = base_date
+
+    # Computes payment missed
+    @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
+    def _compute_payment_missed(self):
+        today = fields.Date.today()
+        for record in self:
+            if not record.repayment_date:
+                record.is_payment_missed = False
+                continue
+
+            # Find payments made on the expected repayment date
+            payments_on_date = record.payment_lines.filtered(
+                lambda p: p.payment_date == record.repayment_date
+            )
+            
+            # Calculate total payment amount for that date
+            total_payment = sum(payments_on_date.mapped('payment_amount'))
+
+            _logger.info(f"Payments found: {payments_on_date}")
+            _logger.info(f"Repayment Date, Total payment: {record.repayment_date}, {total_payment}")
+            
+            if payments_on_date:
+                if total_payment < record.expected_to_pay:
+                    # Raise warning if payment amount is less than expected
+                    message = _(
+                        'Warning: Payment amount (%.2f) is less than expected amount (%.2f) for date %s'
+                    ) % (total_payment, record.expected_to_pay, record.repayment_date)
+                    
+                    self.env['bus.bus']._sendone(
+                        self.env.user.partner_id,
+                        'warning',
+                        {
+                            'title': _('Insufficient Payment'),
+                            'message': message,
+                        }
+                    )
+                    record.is_payment_missed = True
+                else:
+                    record.is_payment_missed = False
+            else:
+                record.is_payment_missed = record.repayment_date < today
+
+    def get_hubtel_credentials(self):
+        credentials = self.env['res.config.settings'].get_hubtel_credentials()
+        client_id = credentials.get('client_id')
+        
+        # Display using Odoo's notification system
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Hubtel Credentials',
+                'message': f'Client ID: {client_id}',
+                'sticky': True,
+                'type': 'info',
+                'position': 'bottom-right'
+            }
+        }
 
