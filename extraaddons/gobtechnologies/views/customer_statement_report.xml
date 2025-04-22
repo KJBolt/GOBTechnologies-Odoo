@@ -52,7 +52,6 @@
                     <button name="action_cancel" type="object" string="Cancel" 
                         invisible="state in ['draft', 'progress']" groups="gobtechnologies.group_repayment_accounts"
                     />
-                    <button name="get_hubtel_credentials" type="object" string="Get Hubtel Credentials"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,progress,paid"/>
                 </header>
 
@@ -61,47 +60,58 @@
                         <div class="ribbon ribbon-top-right" invisible="state != 'paid'" style="z-index: 10;">
                             <span class="o_ribbon" style="background-color: #28a745;">PAID</span>
                         </div>
+
+                        <div class="ribbon ribbon-top-right" invisible="not overdue_status" style="z-index: 10;">
+                            <span class="o_ribbon" style="background-color: #ce3168;">OVERDUE</span>
+                        </div>
+
+                        <field name="overdue_status" invisible='1' />
                     </div>
                     <group name="repayment_header">
                         <group name="customer_details">
                             <field name="customer_name" placeholder="Type to find a customer..." readonly="state in ['cancel', 'paid']" options="{'no_open': True}"/>
-                            <field name="plan" readonly="state in ['cancel', 'paid']"/>
+                            <field name="gps_location" readonly="state in ['cancel', 'paid']"/>
                         </group>
                         <group name="other_details">
                             <div class="o_td_label">
-                                <label for="gps_location" string="Gps Location"/>
+                                <label for="client_reference" string="Client Reference"/>
                             </div>
-                            <field name="gps_location" placeholder="Enter your location..." nolabel="1" readonly="state in ['cancel', 'paid']"/>
+                            <field name="client_reference" placeholder="Client Reference" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                             <div class="o_td_label">
-                                <label for="selling_price" string="Selling Price"/>
+                                <label for="plan" string="Plan"/>
                             </div>
-                            <field name="selling_price" readonly="state in ['cancel', 'paid']" nolabel="1"/>
+                            <field name="plan" readonly="state in ['cancel', 'paid']" nolabel="1"/>
                         </group>
                     </group>
 
                     <group name="repayment_header">
                         <group name="customer_details">
-                            <field name="start_date" readonly="state in ['cancel', 'paid']"/>
-                            <field name="deposit" readonly="state in ['cancel', 'paid']"/>
+                            <field name="selling_price" readonly="state in ['cancel', 'paid']"/>
+                            <field name="end_date" readonly="state in ['cancel', 'paid']"/>
                         </group>
                         <group name="other_details">
                             <div class="o_td_label">
-                                <label for="end_date" string="End Date"/>
+                                <label for="start_date" string="Start Date"/>
                             </div>
-                            <field name="end_date" nolabel="1" readonly="state in ['cancel', 'paid']"/>
+                            <field name="start_date" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                             <div class="o_td_label">
-                                <label for="expected_to_pay" string="Expected To Pay"/>
+                                <label for="expected_to_pay" string="Expected to Pay"/>
                             </div>
                             <field name="expected_to_pay" readonly="state in ['cancel', 'paid']" nolabel="1"/>
                         </group>
                     </group>
                     <group>
                         <group>
-                            <field name="total_paid" readonly="1" no-open="1"/>
+                            <field name="deposit" no-open="1"/>
                         </group>
 
+                        <group>
+                            <field name="total_paid" readonly="1" no-open="1"/>
+                        </group>
+                    </group>
+                    <group>
                         <group>
                             <field name="outstanding_loan" readonly="1" no-open="1"/>
                         </group>
@@ -180,9 +190,9 @@
                         </page>
 
                         <!-- Payment Tab -->
-                        <page string="Payment Details" name="Payment Details" groups="gobtechnologies.group_repayment_accounts">
+                        <page string="Repayment History" name="Repayment History" groups="gobtechnologies.group_repayment_accounts">
                             <field name="payment_lines" readonly="state in ['paid']">
-                                <tree editable="bottom">
+                                <tree editable="bottom" default_order="create_date desc">
                                     <field name="repayment_id" invisible="1" force_save="1" column_invisible="True"/>
                                     <field name="payment_date"/>
                                     <field name="payment_mode"/>
@@ -207,6 +217,21 @@
                                 </div>
                                 <field name="total_paid" nolabel="1" class="oe_subtotal_footer_separator" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                             </group>
+                        </page>
+
+                        <page string="Payment Compliance Overview" name="payment_compliance">
+                            <field name="payment_lines" readonly="1" domain="[('is_payment_insufficient', '=', True)]">
+                                <tree default_order="create_date desc">
+                                    <field name="payment_date"/>
+                                    <field name="expected_amount"/>
+                                    <field name="payment_amount" string="Amount Paid"/>
+                                    <field name="payment_status" 
+                                        decoration-danger="payment_status == 'Underpaid'"
+                                        decoration-success="payment_status == 'Fully Paid'"
+                                        decoration-info="payment_status == 'Overpaid'"
+                                    />
+                                </tree>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>
@@ -236,7 +261,7 @@
         <field name="name">Repayment Tree</field>
         <field name="model">repayment</field>
         <field name="arch" type="xml">
-            <tree string="Repayment">
+            <tree string="Repayment" default_order="create_date desc">
                 <field name="unique_id"/>
                 <field name="customer_name"/>
                 <field name="gps_location"/>

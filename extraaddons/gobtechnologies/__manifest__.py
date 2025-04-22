@@ -20,6 +20,7 @@
         'views/customer_statement_report.xml',
         'views/hubtel_webhook.xml',
         'views/res_config_settings_views.xml',
+        'data/ir_cron.xml',
     ],
     'installable': True,
     'application': True,

@@ -20,8 +20,9 @@ class HubtelWebhook(models.Model):
     order_id = fields.Char(string='Order ID', readonly=True)
     payment_date = fields.Char(string='Payment Date', readonly=True)
     phone_no = fields.Char(string='Phone No', readonly=True, compute='_compute_phone_no', store=True)
-    customer_name = fields.Char(string='Customer Name', readonly=True, compute='_compute_customer_name', store=True)
+    customer_name = fields.Char(string='Customer Name', readonly=True, store=True)
     is_read = fields.Boolean(string='Is Read', default=False)
+
 
 
     def mark_as_read(self):
@@ -36,15 +37,12 @@ class HubtelWebhook(models.Model):
                 
                 # Send to string channel
                 channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-                notification_type = 'hubtel_notification'
+                notification_type = 'count_notification'
                 message = {'count': unread_count}
                 self.env['bus.bus']._sendone(channel, notification_type, message)
         except Exception as e:
             _logger.error(f"Error marking notifications as read: str{e}")
             return False
-
-
-
 
 
 
@@ -66,14 +64,14 @@ class HubtelWebhook(models.Model):
 
 
     def _process_customer_name(self, record):
-            search_repayment = self.env['repayment'].search([('phone_no', '=', record.phone_no)], limit=1)
+            search_repayment = self.env['repayment'].search([('client_reference', '=', self.client_reference)], limit=1)
             if search_repayment:
                 record.customer_name = search_repayment.customer_name.name
 
 
     def _process_payment(self, record):
         _logger.info("Computing Payment")
-        repayment = self.env['repayment'].search([('phone_no', '=', record.phone_no)], limit=1)
+        repayment = self.env['repayment'].search([('client_reference', '=', self.client_reference)], limit=1)
         if repayment:
             repayment.payment_lines.create({
                 'payment_date': record.payment_date,
@@ -82,10 +80,11 @@ class HubtelWebhook(models.Model):
                 'repayment_id': repayment.id
             })
         else:
-            _logger.info("Repayment not found for this contact")
+            _logger.info("Client Reference not found")
         
         
     
     
     
+
 

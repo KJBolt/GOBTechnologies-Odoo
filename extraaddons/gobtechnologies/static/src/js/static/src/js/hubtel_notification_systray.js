@@ -31,8 +31,12 @@ export class HubtelNotificationSystray extends Component {
     _onBusNotification(event) {
         const notifications = event.detail;
         for (const { type, payload } of notifications) {
-            if (type === 'hubtel_notification') {
+            if (type === 'count_notification') {
                 this.state.count = payload.count;
+            }
+
+            if (type === 'notify_user'){
+                this.notification.add(payload.msg, { type: "success", sticky: true });
             }
         }
     }

@@ -14,9 +14,9 @@
         <field name="name">Notifications from Hubtel</field>
         <field name="model">hubtel.webhook</field>
         <field name="arch" type="xml">
-            <tree string="Hubtel Webhook">
+            <tree string="Hubtel Webhook" default_order="create_date desc">
                 <field name="customer_name"/>
-                <field name="phone_no"/>
+                <field name="phone_no" column_invisible="True"/>
                 <field name="client_reference"/>
                 <field name="transaction_id"/>
                 <field name="order_id"/>
@@ -39,21 +39,35 @@
         <field name="arch" type="xml">
             <form string="Hubtel Webhook">
                 <sheet>
-                    <group name="header">
-                        <field name="customer_name"/>
-                        <field name="phone_no"/>
-                        <field name="client_reference"/>
-                        <field name="transaction_id"/>
-                        <field name="order_id"/>
-                        <field name="amount"/>
-                        <field name="charges"/>
-                        <field name="amount_after_charges"/>
-                        <field name="amount_charged"/>
-                        <field name="message"/>
-                        <field name="description"/>
-                        <field name="external_transaction_id"/>
-                        <field name="payment_date"/>
-                        <field name="is_read"/>
+                    <group name="header" string="Notification Details">
+                        <group>
+                            <field name="customer_name"/>
+                            <field name="payment_date"/>
+                        </group>
+                        <group>
+                            <field name="client_reference"/>
+                            <field name="transaction_id"/>
+                        </group>
+                        <group>
+                            <field name="order_id"/>
+                            <field name="amount"/>
+                        </group>
+                        <group>
+                            <field name="charges"/>
+                            <field name="amount_after_charges"/>
+                        </group>
+                        <group>
+                            <field name="amount_charged"/>
+                            <field name="message"/>
+                        </group>
+                        <group>
+                            <field name="description"/>
+                            <field name="external_transaction_id"/>
+                        </group>
+                        <group>
+                            <field name="phone_no" invisible="1"/>
+                            <field name="is_read" invisible="1"/>
+                        </group>
                     </group>
                 </sheet>
             </form>
