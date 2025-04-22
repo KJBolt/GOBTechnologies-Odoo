@@ -209,6 +209,13 @@ class Repayment(models.Model):
         store=True
     )
     overdue_status = fields.Boolean(string="Overdue Status", compute='_compute_overdue_status', store=True)
+    is_payment_insufficient = fields.Boolean(string='Payment Insufficient', compute='_compute_repayment_date', store=True)
+    overdue_amount = fields.Float(string='Overdue Amount', compute='_compute_overdue_amount', store=True)
+    payment_status = fields.Selection([
+        ('on_track', 'On Track'),
+        ('overdue', 'Overdue'),
+        ('insufficient', 'Insufficient Payment')
+    ], string='Payment Status', compute='_compute_payment_status', store=True)
 
     # Compute the repayment amount
     @api.depends('payment_lines.payment_amount')
@@ -397,117 +404,56 @@ class Repayment(models.Model):
         return True
 
     # Computes the next repayment date
-    @api.depends('start_date', 'repayment_frequency', 'payment_lines.payment_date')
+    @api.depends('start_date', 'repayment_frequency', 'payment_lines.payment_date', 'expected_to_pay')
     def _compute_repayment_date(self):
         for record in self:
             if not record.start_date or not record.repayment_frequency:
                 record.repayment_date = False
                 continue
 
-            # Find the last payment date
+            today = fields.Date.today()
+            
+            # Get the last payment date or use start date if no payments
             last_payment = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)[:1]
-            base_date = last_payment.payment_date if last_payment else record.start_date
+            current_period_start = last_payment.payment_date if last_payment else record.start_date
 
-            # Calculate next repayment date based on frequency
+            # Calculate the end of current payment period
             if record.repayment_frequency == '1':  # Daily
-                record.repayment_date = base_date + timedelta(days=1)
-            elif record.repayment_frequency == '14':  # Weekly
-                record.repayment_date = base_date + timedelta(days=7)
+                current_period_end = current_period_start + timedelta(days=1)
+            elif record.repayment_frequency == '7':  # Weekly
+                current_period_end = current_period_start + timedelta(days=7)
             elif record.repayment_frequency == '30':  # Monthly
-                record.repayment_date = base_date + timedelta(days=30)
+                current_period_end = current_period_start + timedelta(days=30)
             else:  # Cash
-                record.repayment_date = base_date
-
-    # Computes the next repayment date
-    # @api.depends('start_date', 'repayment_frequency', 'last_repayment_date', 'payment_lines.payment_date')
-    # def _compute_repayment_date(self):
-    #     for record in self:
-    #         if not record.start_date or not record.repayment_frequency:
-    #             record.repayment_date = False
-    #             continue
-
-    #         # Get all payment lines sorted by date
-    #         sorted_payments = record.payment_lines.sorted(lambda p: p.payment_date)
-
-    #         if record.start_date and record.repayment_frequency and not sorted_payments:
-    #             if record.repayment_frequency == '1':  # Daily
-    #                 next_date = record.start_date + timedelta(days=1)
-    #             elif record.repayment_frequency == '7':  # Weekly
-    #                 next_date = record.start_date + timedelta(weeks=1)
-    #             elif record.repayment_frequency == '30':  # Monthly
-    #                 next_date = record.start_date + relativedelta(months=1)
-    #             else:  # Cash
-    #                 next_date = record.start_date
-
-    #             record.repayment_date = next_date
-
-    #         elif record.start_date and record.repayment_frequency and sorted_payments:
-    #             # # check if last payment date was within the repayment frequency period
-    #             # last_payment = sorted_payments[-1].payment_date
-    #             # if last_payment and (fields.Date.today() - last_payment).days <= int(record.repayment_frequency):
-    #             #     _logger.info('Last payment was within the repayment frequency period')
-
-    #             #     all_payment_within_period = self.env['repayment.payment.line'].search([
-    #             #         ('repayment_id', '=', record.id),
-    #             #         ('payment_date', '<=', record.repayment_date)
-    #             #         ('payment_amount', '<', record.expected_to_pay)
-    #             #     ])
-
-    #             #     for record in all_payment_within_period:
-    #             #         _logger.info(f"All payments Less that expected, {record.payment_amount}")
-
-
-    #             #Calculate total payments within frequency period
-    #             frequency_days = int(record.repayment_frequency)
-    #             _logger.info(f"Frequency days: {frequency_days}")
-    #             recent_date = fields.Date.today() - timedelta(days=frequency_days)
-    #             _logger.info(f"Recent date: {recent_date}")
+                current_period_end = current_period_start
                 
-    #             # Get all payments within frequency period
-    #             recent_payments = record.payment_lines.filtered(
-    #                 lambda p: p.payment_date <= recent_date
-    #             )
-    #             _logger.info(f"Recent payments: {recent_payments}")
-    #             total_recent_payment = sum(recent_payments.mapped('payment_amount'))
-    #             _logger.info(f"Total Recent payments: {total_recent_payment}")
+            # Get total payments made in current period
+            current_period_payments = record.payment_lines.filtered(
+                lambda p: current_period_start <= p.payment_date <= current_period_end
+            )
+            total_paid_in_period = sum(current_period_payments.mapped('payment_amount'))
 
-    #             if total_recent_payment >= record.expected_to_pay:
-    #                 if record.repayment_frequency == '1':  # Daily
-    #                     next_date = record.repayment_date + timedelta(days=1)
-    #                 elif record.repayment_frequency == '7':  # Weekly
-    #                     next_date = record.repayment_date + timedelta(weeks=1)
-    #                 elif record.repayment_frequency == '30':  # Monthly
-    #                     next_date = record.repayment_date + relativedelta(days=30)
-    #                 else:  # Cash
-    #                     next_date = record.repayment_date
-
-    #                 record.repayment_date = next_date
-    #                 _logger.info(f"Total payments within period: {total_recent_payment} meets expected amount: {record.expected_to_pay}")
-    #             else:
-    #                 _logger.info(f"Total payments within period: {total_recent_payment} is less than expected: {record.expected_to_pay}")
-    #         else:
-    #             _logger.info('Last payment was not within the repayment frequency period')
-
-
-    #         # # If no last repayment date exists, use start_date as base
-    #         # if not record.last_repayment_date:
-    #         #     base_date = record.start_date
-    #         # else:
-    #         #     # Use the last repayment date as base
-    #         #     base_date = record.last_repayment_date
-
-    #         # # Calculate next repayment date based on frequency
-    #         # if record.repayment_frequency == '1':  # Daily
-    #         #     next_date = base_date + timedelta(days=1)
-    #         # elif record.repayment_frequency == '7':  # Weekly
-    #         #     next_date = base_date + timedelta(weeks=1)
-    #         # elif record.repayment_frequency == '30':  # Monthly
-    #         #     next_date = base_date + relativedelta(days=30)
-    #         # else:  # Cash
-    #         #     next_date = base_date
-
-    #         # record.repayment_date = next_date
-    #         # _logger.info(f"Start date: {record.start_date}, Base date: {base_date}, Next repayment date: {next_date}")
+            # If we're past the current period end date
+            if today > current_period_end:
+                if total_paid_in_period < record.expected_to_pay:
+                    # If underpaid, keep the same repayment date to show it's overdue
+                    record.repayment_date = current_period_end
+                    # You might want to set a flag or send notification here
+                    record.is_payment_insufficient = True
+                else:
+                    # If fully paid, calculate next period
+                    if record.repayment_frequency == '1':
+                        record.repayment_date = current_period_end + timedelta(days=1)
+                    elif record.repayment_frequency == '7':
+                        record.repayment_date = current_period_end + timedelta(days=7)
+                    elif record.repayment_frequency == '30':
+                        record.repayment_date = current_period_end + timedelta(days=30)
+                    else:
+                        record.repayment_date = current_period_end
+                    record.is_payment_insufficient = False
+            else:
+                # We're still within the current period
+                record.repayment_date = current_period_end
 
     # Computes payment missed
     @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
@@ -689,4 +635,52 @@ class Repayment(models.Model):
             except Exception as e:
                 raise ValidationError(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
                 _logger.error(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
+
+    @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
+    def _compute_payment_status(self):
+        today = fields.Date.today()
+        for record in self:
+            if not record.repayment_date:
+                record.payment_status = 'on_track'
+                continue
+
+            # Get payments in current period
+            current_period_start = record.start_date
+            current_period_end = record.repayment_date
+            
+            current_period_payments = record.payment_lines.filtered(
+                lambda p: current_period_start <= p.payment_date <= current_period_end
+            )
+            total_paid_in_period = sum(current_period_payments.mapped('payment_amount'))
+
+            if today > record.repayment_date:
+                if total_paid_in_period < record.expected_to_pay:
+                    record.payment_status = 'overdue'
+                else:
+                    record.payment_status = 'on_track'
+            else:
+                if total_paid_in_period < record.expected_to_pay:
+                    record.payment_status = 'insufficient'
+                else:
+                    record.payment_status = 'on_track'
+
+    @api.depends('expected_to_pay', 'payment_lines.payment_amount', 'repayment_date')
+    def _compute_overdue_amount(self):
+        today = fields.Date.today()
+        for record in self:
+            if not record.repayment_date or today <= record.repayment_date:
+                record.overdue_amount = 0.0
+                continue
+
+            # Get all payments up to current date
+            past_payments = record.payment_lines.filtered(
+                lambda p: p.payment_date <= record.repayment_date
+            )
+            total_paid = sum(past_payments.mapped('payment_amount'))
+            
+            # Calculate overdue amount
+            if total_paid < record.expected_to_pay:
+                record.overdue_amount = record.expected_to_pay - total_paid
+            else:
+                record.overdue_amount = 0.0
 
