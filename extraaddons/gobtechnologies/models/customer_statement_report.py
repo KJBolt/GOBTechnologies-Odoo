@@ -280,6 +280,13 @@ class Repayment(models.Model):
         ('overdue', 'Overdue'),
         ('insufficient', 'Insufficient Payment')
     ], string='Payment Status', compute='_compute_payment_status', store=True)
+    penalty_ids = fields.One2many('repayment.penalty', 'repayment_id', string='Penalties')
+    total_penalties = fields.Float(string='Total Penalties', compute='_compute_total_penalties', store=True)
+
+    @api.depends('penalty_ids.penalty_amount')
+    def _compute_total_penalties(self):
+        for record in self:
+            record.total_penalties = sum(record.penalty_ids.mapped('penalty_amount'))
 
     # Compute the repayment amount
     @api.depends('payment_lines.payment_amount')
@@ -467,6 +474,7 @@ class Repayment(models.Model):
         self.state = 'draft'
         return True
 
+
     # Computes the next repayment date
     @api.depends('start_date', 'repayment_frequency', 'payment_lines.payment_date', 'expected_to_pay')
     def _compute_repayment_date(self):
@@ -547,6 +555,7 @@ class Repayment(models.Model):
             else:
                 record.is_payment_missed = record.repayment_date < today
 
+
     # Send SMS to customer
     def _send_hubtel_sms(self, phone, sms_message, customer_name):
         """Helper method to send SMS via Hubtel API using GET request"""
@@ -590,12 +599,15 @@ class Repayment(models.Model):
             _logger.error(f"Failed to send SMS: {str(e)}")
             return False
 
+
     # Send repayment reminders
     @api.model
     def _send_repayment_reminders(self):
         today = fields.Date.today()
         tomorrow = today + timedelta(days=1)
         yesterday = today - timedelta(days=1)
+        two_days_ago = today - timedelta(days=2)
+        three_days_ago = today - timedelta(days=3)
         
         # Find all active repayments
         repayments = self.search([
@@ -612,20 +624,28 @@ class Repayment(models.Model):
                 # Check for upcoming payments and overdue payments
                 should_remind = False
                 is_overdue = False
+                should_send_penalty_reminder = False
+                should_charge_penalty = False
                 
                 if repayment.repayment_frequency == '1':  # Daily
                     should_remind = tomorrow == repayment.repayment_date
                     is_overdue = yesterday == repayment.repayment_date
+                    should_send_penalty_reminder = two_days_ago == repayment.repayment_date
+                    should_charge_penalty = three_days_ago == repayment.repayment_date
                 elif repayment.repayment_frequency == '14':  # Weekly
                     days_until_payment = (repayment.repayment_date - tomorrow).days
                     days_since_payment = (today - repayment.repayment_date).days
                     should_remind = days_until_payment == 0
                     is_overdue = days_since_payment == 1
+                    should_send_penalty_reminder = days_since_payment == 2
+                    should_charge_penalty = days_since_payment == 3
                 elif repayment.repayment_frequency == '30':  # Monthly
                     days_until_payment = (repayment.repayment_date - tomorrow).days
                     days_since_payment = (today - repayment.repayment_date).days
                     should_remind = days_until_payment == 0
                     is_overdue = days_since_payment == 1
+                    should_send_penalty_reminder = days_since_payment == 2
+                    should_charge_penalty = days_since_payment == 3
                 elif repayment.repayment_frequency == '0':  # Cash
                     continue
                 
@@ -681,12 +701,82 @@ class Repayment(models.Model):
                             f"as payment was received (Total: {total_payment})"
                         )
 
+                # Check for penalty reminder (2 days after due date)
+                if should_send_penalty_reminder and repayment.outstanding_loan > 0:
+                    # Check if payment was made in the last 2 days
+                    recent_payments = repayment.payment_lines.filtered(
+                        lambda p: p.payment_date >= two_days_ago
+                    )
+                    total_recent_payment = sum(recent_payments.mapped('payment_amount'))
+                    
+                    if not recent_payments or total_recent_payment < repayment.expected_to_pay:
+                        penalty_reminder_message = (
+                            f"Dear {repayment.customer_name.name}, "
+                            f"your payment of GHS {repayment.expected_to_pay} is still pending. "
+                            f"Please note that a penalty fee of GHS 10 will be charged tomorrow "
+                            f"if payment is not made today. "
+                            f"Kindly dial *713*7678# to pay now. "
+                            f"Thank you for choosing GOB Technologies."
+                        )
+                        
+                        if repayment.phone_no:
+                            self._send_hubtel_sms(repayment.phone_no, penalty_reminder_message, repayment.customer_name.name)
+                        
+                        _logger.info(
+                            f"Sent penalty warning to {repayment.customer_name.name} "
+                            f"for payment due on {two_days_ago}"
+                        )
+
+                # Check for penalty charge (3 days after due date)
+                if should_charge_penalty and repayment.outstanding_loan > 0:
+                    # Check if payment was made in the last 3 days
+                    recent_payments = repayment.payment_lines.filtered(
+                        lambda p: p.payment_date >= three_days_ago
+                    )
+                    total_recent_payment = sum(recent_payments.mapped('payment_amount'))
+                    
+                    if not recent_payments or total_recent_payment < repayment.expected_to_pay:
+                        # Add penalty charge
+                        penalty_amount = 10.0  # GHS 10
+                        
+                        # Create penalty charge record
+                        self.env['repayment.penalty'].create({
+                            'repayment_id': repayment.id,
+                            'penalty_date': today,
+                            'penalty_amount': penalty_amount,
+                            'reason': 'Late payment penalty'
+                        })
+                        
+                        
+                        # Update outstanding loan amount to include penalty
+                        repayment.write({
+                            'outstanding_loan': repayment.outstanding_loan + penalty_amount,
+                            'penalty': penalty_amount
+                        })
+                        
+                        penalty_charge_message = (
+                            f"Dear {repayment.customer_name.name}, "
+                            f"a penalty fee of GHS {penalty_amount} has been charged to your account "
+                            f"due to delayed payment. Your new outstanding balance is "
+                            f"GHS {repayment.outstanding_loan}. "
+                            f"Kindly dial *713*7678# to pay now. "
+                            f"Thank you for choosing GOB Technologies."
+                        )
+                        
+                        if repayment.phone_no:
+                            self._send_hubtel_sms(repayment.phone_no, penalty_charge_message, repayment.customer_name.name)
+                        
+                        _logger.info(
+                            f"Applied penalty charge to {repayment.customer_name.name} "
+                            f"for payment due on {three_days_ago}"
+                        )
+
             except Exception as e:
-                raise ValidationError(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
-                _logger.error(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
+                _logger.error(f"Failed to process reminders for {repayment.customer_name.name}: {str(e)}")
+                raise ValidationError(f"Failed to process reminders for {repayment.customer_name.name}: {str(e)}")
 
 
-
+    # Compute payment status
     @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
     def _compute_payment_status(self):
         today = fields.Date.today()
@@ -714,6 +804,7 @@ class Repayment(models.Model):
                     record.payment_status = 'insufficient'
                 else:
                     record.payment_status = 'on_track'
+
 
     # Compute overdue amount
     @api.depends('expected_to_pay', 'payment_lines.payment_amount', 'repayment_date')
