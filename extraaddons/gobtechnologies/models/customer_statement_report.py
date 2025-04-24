@@ -2,7 +2,7 @@ from odoo import api, fields, models, _
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta 
 import logging
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 import requests
 import json
 
@@ -27,7 +27,7 @@ class RepaymentPaymentLine(models.Model):
         ('bank', 'Bank Transfer')
     ], string='Mode of Payment', required=True)
     payment_amount = fields.Float(string='Payment Amount', required=True)
-    payment_date = fields.Date(string='Payment Date', required=True)
+    # payment_date = fields.Date(string='Payment Date', required=True)
     is_payment_insufficient = fields.Boolean(
         string='Payment Insufficient',
         compute='_compute_is_payment_insufficient',
@@ -69,21 +69,86 @@ class RepaymentPaymentLine(models.Model):
     @api.model
     def create(self, vals):
         res = super(RepaymentPaymentLine, self).create(vals)
+        
         # Check and update state after payment
         repayment = res.repayment_id
-        if repayment.outstanding_loan <= 0:
-            repayment.write({'state': 'paid'})
 
+        # Only mark as paid if total_paid matches or exceeds selling_price
+        if repayment.total_paid >= repayment.selling_price:
+            repayment.write({'state': 'paid'})
+        else:
+            repayment.write({'state': 'progress'})
+        
+        res.testpayment(vals)
         return res
+        
 
     def write(self, vals):
         res = super(RepaymentPaymentLine, self).write(vals)
         # Check and update state after payment
         repayment = self.repayment_id
-        if repayment.outstanding_loan <= 0:
+        _logger.info(f"Oustanding loan when updating: {repayment.outstanding_loan}")
+        
+        # Only mark as paid if total_paid matches or exceeds selling_price
+        if repayment.total_paid >= repayment.selling_price:
             repayment.write({'state': 'paid'})
+        else:
+            repayment.write({'state': 'progress'})
 
         return res
+
+    def testpayment(self, vals):
+        # Get current payment date and amount
+        current_payment_date = fields.Date.from_string(vals.get('payment_date'))
+        current_payment_amount = vals.get('payment_amount')
+        previous_payment_date = current_payment_date - timedelta(days=1)
+
+        _logger.info(f"Previous payment date: {previous_payment_date}")
+        _logger.info(f"Current payment amount: {current_payment_amount}")
+        _logger.info(f"Current payment date: {current_payment_date}")
+
+        # Get all payments for the previous date
+        previous_date_payments = self.repayment_id.payment_lines.filtered(
+            lambda p: p.payment_date == previous_payment_date
+        )
+        
+        previous_payment_total = sum(previous_date_payments.mapped('payment_amount'))
+
+        # Check if previous payment was insufficient
+        if previous_date_payments and previous_payment_total < self.repayment_id.expected_to_pay:
+            shortage = self.repayment_id.expected_to_pay - previous_payment_total
+            
+            # If current payment can cover the shortage
+            if current_payment_amount >= shortage:
+                # Amount to be used from current payment
+                amount_to_previous = shortage
+                # Remaining amount for current payment
+                remaining_current = current_payment_amount - shortage
+                
+                if previous_date_payments:
+                    # Update existing previous payment
+                    previous_date_payments[0].write({
+                        'payment_amount': previous_payment_total + amount_to_previous
+                    })
+                else:
+                    # Create new payment record for previous date
+                    self.env['repayment.payment.line'].create({
+                        'payment_date': previous_payment_date,
+                        'payment_amount': amount_to_previous,
+                        'repayment_id': self.repayment_id.id,
+                        'payment_mode': 'momo'  
+                    })
+
+                # Update the current payment with remaining amount
+                self.write({
+                    'payment_amount': remaining_current
+                })
+
+                _logger.info(f"Previous payment was insufficient. Added {amount_to_previous} from current payment")
+                _logger.info(f"Previous payment updated to: {previous_payment_total + amount_to_previous}")
+                _logger.info(f"Current payment updated to: {remaining_current}")
+            else:
+                _logger.info("Current payment insufficient to cover previous payment shortage")
 
 
 class RepaymentProductLine(models.Model):
@@ -209,7 +274,6 @@ class Repayment(models.Model):
         store=True
     )
     overdue_status = fields.Boolean(string="Overdue Status", compute='_compute_overdue_status', store=True)
-    is_payment_insufficient = fields.Boolean(string='Payment Insufficient', compute='_compute_repayment_date', store=True)
     overdue_amount = fields.Float(string='Overdue Amount', compute='_compute_overdue_amount', store=True)
     payment_status = fields.Selection([
         ('on_track', 'On Track'),
@@ -407,53 +471,53 @@ class Repayment(models.Model):
     @api.depends('start_date', 'repayment_frequency', 'payment_lines.payment_date', 'expected_to_pay')
     def _compute_repayment_date(self):
         for record in self:
+            # Default to False
+            record.repayment_date = False
+            
+            # Basic validation
             if not record.start_date or not record.repayment_frequency:
-                record.repayment_date = False
                 continue
 
-            today = fields.Date.today()
-            
-            # Get the last payment date or use start date if no payments
-            last_payment = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)[:1]
-            current_period_start = last_payment.payment_date if last_payment else record.start_date
+            try:
+                freq = int(record.repayment_frequency)
+            except (ValueError, TypeError):
+                continue
 
-            # Calculate the end of current payment period
-            if record.repayment_frequency == '1':  # Daily
-                current_period_end = current_period_start + timedelta(days=1)
-            elif record.repayment_frequency == '7':  # Weekly
-                current_period_end = current_period_start + timedelta(days=7)
-            elif record.repayment_frequency == '30':  # Monthly
-                current_period_end = current_period_start + timedelta(days=30)
-            else:  # Cash
-                current_period_end = current_period_start
-                
-            # Get total payments made in current period
-            current_period_payments = record.payment_lines.filtered(
-                lambda p: current_period_start <= p.payment_date <= current_period_end
-            )
-            total_paid_in_period = sum(current_period_payments.mapped('payment_amount'))
-
-            # If we're past the current period end date
-            if today > current_period_end:
-                if total_paid_in_period < record.expected_to_pay:
-                    # If underpaid, keep the same repayment date to show it's overdue
-                    record.repayment_date = current_period_end
-                    # You might want to set a flag or send notification here
-                    record.is_payment_insufficient = True
+            # If no payment lines, calculate from start date
+            if not record.payment_lines:
+                if freq == 1:
+                    record.repayment_date = record.start_date + timedelta(days=1)
+                elif freq == 7:
+                    record.repayment_date = record.start_date + timedelta(weeks=1)
+                elif freq == 30:
+                    record.repayment_date = record.start_date + relativedelta(months=1)
                 else:
-                    # If fully paid, calculate next period
-                    if record.repayment_frequency == '1':
-                        record.repayment_date = current_period_end + timedelta(days=1)
-                    elif record.repayment_frequency == '7':
-                        record.repayment_date = current_period_end + timedelta(days=7)
-                    elif record.repayment_frequency == '30':
-                        record.repayment_date = current_period_end + timedelta(days=30)
-                    else:
-                        record.repayment_date = current_period_end
-                    record.is_payment_insufficient = False
+                    record.repayment_date = record.start_date
+                continue
+
+            # Get payments sorted by date
+            payment_lines_sorted = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)
+            if not payment_lines_sorted:
+                record.repayment_date = record.start_date
+                continue
+
+            current_payment = payment_lines_sorted[0]
+            current_payment_date = current_payment.payment_date
+            current_payment_amount = current_payment.payment_amount
+
+            # Calculate next repayment date based on payment amount
+            if current_payment_amount >= record.expected_to_pay:
+                full_payments = int(current_payment_amount // record.expected_to_pay)
+                if freq == 1:
+                    record.repayment_date = current_payment_date + timedelta(days=full_payments)
+                elif freq == 7:
+                    record.repayment_date = current_payment_date + timedelta(weeks=full_payments)
+                elif freq == 30:
+                    record.repayment_date = current_payment_date + relativedelta(months=full_payments)
             else:
-                # We're still within the current period
-                record.repayment_date = current_period_end
+                # If payment is insufficient, keep current repayment date
+                record.repayment_date = current_payment_date
+
 
     # Computes payment missed
     @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
@@ -477,19 +541,6 @@ class Repayment(models.Model):
             
             if payments_on_date:
                 if total_payment < record.expected_to_pay:
-                    # Raise warning if payment amount is less than expected
-                    message = _(
-                        'Warning: Payment amount (%.2f) is less than expected amount (%.2f) for date %s'
-                    ) % (total_payment, record.expected_to_pay, record.repayment_date)
-                    
-                    self.env['bus.bus']._sendone(
-                        self.env.user.partner_id,
-                        'warning',
-                        {
-                            'title': _('Insufficient Payment'),
-                            'message': message,
-                        }
-                    )
                     record.is_payment_missed = True
                 else:
                     record.is_payment_missed = False
@@ -584,7 +635,7 @@ class Repayment(models.Model):
                         f"Dear {repayment.customer_name.name}, "
                         f"this is a reminder that your payment of GHS {repayment.expected_to_pay} "
                         f"is due tomorrow {tomorrow.strftime('%d-%m-%Y')}. "
-                        f"Your outstanding balance is GHS {repayment.outstanding_loan}. "
+                        f"Kindly dial *713*7678# to pay now to avoid any penalties."
                         f"Thank you for choosing GOB Technologies."
                     )
                     
@@ -611,10 +662,8 @@ class Repayment(models.Model):
                         payment_status = "not made" if not payments else "insufficient"
                         overdue_message = (
                             f"Dear {repayment.customer_name.name}, "
-                            f"your payment of GHS {repayment.expected_to_pay} was due yesterday "
-                            f"but was {payment_status}. "
-                            f"Your outstanding balance is GHS {repayment.outstanding_loan}. "
-                            f"Please make your payment as soon as possible to avoid any penalties. "
+                            f"your payment of GHS {repayment.expected_to_pay} was due yesterday"
+                            f"Kindly dial *713*7678# to pay now to avoid any penalties."
                             f"Thank you for choosing GOB Technologies."
                         )
                         
@@ -631,10 +680,12 @@ class Repayment(models.Model):
                             f"No overdue notice sent to {repayment.customer_name.name} "
                             f"as payment was received (Total: {total_payment})"
                         )
-            
+
             except Exception as e:
                 raise ValidationError(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
                 _logger.error(f"Failed to send message to {repayment.customer_name.name}: {str(e)}")
+
+
 
     @api.depends('repayment_date', 'payment_lines.payment_date', 'payment_lines.payment_amount', 'expected_to_pay')
     def _compute_payment_status(self):
@@ -664,6 +715,7 @@ class Repayment(models.Model):
                 else:
                     record.payment_status = 'on_track'
 
+    # Compute overdue amount
     @api.depends('expected_to_pay', 'payment_lines.payment_amount', 'repayment_date')
     def _compute_overdue_amount(self):
         today = fields.Date.today()

@@ -192,7 +192,7 @@
                         <!-- Payment Tab -->
                         <page string="Repayment History" name="Repayment History" groups="gobtechnologies.group_repayment_accounts">
                             <field name="payment_lines" readonly="state in ['paid']">
-                                <tree editable="bottom" default_order="create_date desc">
+                                <tree editable="bottom">
                                     <field name="repayment_id" invisible="1" force_save="1" column_invisible="True"/>
                                     <field name="payment_date"/>
                                     <field name="payment_mode"/>
