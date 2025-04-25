@@ -5,6 +5,8 @@ import logging
 from odoo.exceptions import ValidationError, UserError
 import requests
 import json
+import base64
+import magic
 
 _logger = logging.getLogger(__name__)
 
@@ -12,6 +14,8 @@ PAYMENT_STATE = [
     ('draft', "Draft"),
     ('progress', "Payment in Progress"),
     ('paid', "Payment Completed"),
+    ('termination_warning', "Termination Warning"),
+    ('terminated', "Terminated"),
 ]
 
 class RepaymentPaymentLine(models.Model):
@@ -283,6 +287,92 @@ class Repayment(models.Model):
     penalty_ids = fields.One2many('repayment.penalty', 'repayment_id', string='Penalties')
     total_penalties = fields.Float(string='Total Penalties', compute='_compute_total_penalties', store=True)
 
+    customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
+    customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=True)
+
+
+    @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back')
+    def _check_file_types(self):
+        for record in self:
+            if record.customer_ghana_card_front:
+                # Get file content type
+                file_content = base64.b64decode(record.customer_ghana_card_front)
+                file_type = magic.from_buffer(file_content, mime=True)
+
+                # Define allowed file types
+                allowed_types = [
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]
+
+                if file_type not in allowed_types:
+                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+
+                # Check file size (e.g., 10MB limit)
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+            if record.customer_ghana_card_back:
+                # Get file content type
+                file_content = base64.b64decode(record.customer_ghana_card_back)
+                file_type = magic.from_buffer(file_content, mime=True)
+                allowed_types = [
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]
+
+                if file_type not in allowed_types:
+                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+            if record.guarantor_ghana_card_front:
+                # Get file content type
+                file_content = base64.b64decode(record.guarantor_ghana_card_front)
+                file_type = magic.from_buffer(file_content, mime=True)
+                allowed_types = [
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]    
+
+                if file_type not in allowed_types:
+                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+            if record.guarantor_ghana_card_back:
+                # Get file content type
+                file_content = base64.b64decode(record.guarantor_ghana_card_back)
+                file_type = magic.from_buffer(file_content, mime=True)
+                allowed_types = [
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]
+                if file_type not in allowed_types:
+                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+
     @api.depends('penalty_ids.penalty_amount')
     def _compute_total_penalties(self):
         for record in self:
@@ -449,7 +539,7 @@ class Repayment(models.Model):
                 record.percentage_paid = 0
 
 
-    # Send Message to Customer
+    # Send toast message to Customer
     def action_button_method(self):
         # Your method logic here
         return {
@@ -464,7 +554,7 @@ class Repayment(models.Model):
             }
         }
 
-    # Confirm Payment
+    # Confirm button
     def action_confirm_payment(self):
         self.state = 'paid'
         return True
@@ -608,10 +698,12 @@ class Repayment(models.Model):
         yesterday = today - timedelta(days=1)
         two_days_ago = today - timedelta(days=2)
         three_days_ago = today - timedelta(days=3)
+        seven_days_ago = today - timedelta(days=7)
+        fourteen_days_ago = today - timedelta(days=14)  # Add this line
         
         # Find all active repayments
         repayments = self.search([
-            ('state', '=', 'progress'),
+            ('state', 'in', ['progress', 'termination_warning']),  # Include termination_warning state
             ('outstanding_loan', '>', 0)
         ])
         
@@ -626,29 +718,95 @@ class Repayment(models.Model):
                 is_overdue = False
                 should_send_penalty_reminder = False
                 should_charge_penalty = False
+                should_send_termination_warning = False
+                should_send_final_termination = False
                 
                 if repayment.repayment_frequency == '1':  # Daily
                     should_remind = tomorrow == repayment.repayment_date
                     is_overdue = yesterday == repayment.repayment_date
                     should_send_penalty_reminder = two_days_ago == repayment.repayment_date
                     should_charge_penalty = three_days_ago == repayment.repayment_date
-                elif repayment.repayment_frequency == '14':  # Weekly
-                    days_until_payment = (repayment.repayment_date - tomorrow).days
+                    should_send_termination_warning = seven_days_ago >= repayment.repayment_date
+                    should_send_final_termination = fourteen_days_ago >= repayment.repayment_date
+                elif repayment.repayment_frequency == '7':  # Weekly
                     days_since_payment = (today - repayment.repayment_date).days
-                    should_remind = days_until_payment == 0
+                    should_remind = (repayment.repayment_date - tomorrow).days == 0
                     is_overdue = days_since_payment == 1
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
+                    should_send_termination_warning = days_since_payment >= 7
+                    should_send_final_termination = days_since_payment >= 14
                 elif repayment.repayment_frequency == '30':  # Monthly
-                    days_until_payment = (repayment.repayment_date - tomorrow).days
                     days_since_payment = (today - repayment.repayment_date).days
-                    should_remind = days_until_payment == 0
+                    should_remind = (repayment.repayment_date - tomorrow).days == 0
                     is_overdue = days_since_payment == 1
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
+                    should_send_termination_warning = days_since_payment >= 7
+                    should_send_final_termination = days_since_payment >= 14
                 elif repayment.repayment_frequency == '0':  # Cash
                     continue
-                
+
+                # Handle termination warning period (7-14 days)
+                if should_send_termination_warning and repayment.outstanding_loan > 0:
+                    # Check if any payments were made in the last 7 days
+                    recent_payments = repayment.payment_lines.filtered(
+                        lambda p: p.payment_date >= seven_days_ago
+                    )
+                    total_recent_payment = sum(recent_payments.mapped('payment_amount'))
+                    
+                    if not recent_payments or total_recent_payment < repayment.expected_to_pay:
+                        termination_warning_message = (
+                            f"Dear {repayment.customer_name.name}, "
+                            f"your contract with GOB Technologies terminates, "
+                            f"if payment is not received within the next 14 days. "
+                            f"Kindly dial *713*7678# to make immediate payment. "
+                            f"Thank you for choosing GOB Technologies."
+                        )
+                        
+                        if repayment.phone_no:
+                            self._send_hubtel_sms(repayment.phone_no, termination_warning_message, repayment.customer_name.name)
+                        
+                        _logger.info(
+                            f"Sent termination warning to {repayment.customer_name.name} "
+                            f"for payment due on {seven_days_ago}"
+                        )
+                        
+                        # Update the state to indicate termination warning
+                        if repayment.state != 'termination_warning':
+                            repayment.write({
+                                'state': 'termination_warning'
+                            })
+
+                # Handle final termination (after 14 days)
+                if should_send_final_termination and repayment.outstanding_loan > 0:
+                    # Check if any payments were made in the last 14 days
+                    recent_payments = repayment.payment_lines.filtered(
+                        lambda p: p.payment_date >= fourteen_days_ago
+                    )
+                    total_recent_payment = sum(recent_payments.mapped('payment_amount'))
+                    
+                    if not recent_payments or total_recent_payment < repayment.expected_to_pay:
+                        final_termination_message = (
+                            f"Dear {repayment.customer_name.name}, "
+                            f"Due to non-payment for the past 14 days, "
+                            f"your contract with GOB Technologies has been terminated. "
+                        )
+                        
+                        if repayment.phone_no:
+                            self._send_hubtel_sms(repayment.phone_no, final_termination_message, repayment.customer_name.name)
+                        
+                        _logger.info(
+                            f"Sent final termination notice to {repayment.customer_name.name} "
+                            f"for payment due on {fourteen_days_ago}"
+                        )
+                        
+                        # Update the state to terminated
+                        repayment.write({
+                            'state': 'terminated'
+                        })
+
+
                 # Send reminder for upcoming payment
                 if should_remind and repayment.outstanding_loan > 0:
                     reminder_message = (
@@ -667,6 +825,7 @@ class Repayment(models.Model):
                         f"for {repayment.repayment_frequency} payment due on {tomorrow}"
                     )
                 
+
                 # Check if payment was made yesterday or today
                 if is_overdue and repayment.outstanding_loan > 0:
                     # Find payments made on the due date (yesterday) or today
@@ -701,6 +860,7 @@ class Repayment(models.Model):
                             f"as payment was received (Total: {total_payment})"
                         )
 
+
                 # Check for penalty reminder (2 days after due date)
                 if should_send_penalty_reminder and repayment.outstanding_loan > 0:
                     # Check if payment was made in the last 2 days
@@ -726,6 +886,7 @@ class Repayment(models.Model):
                             f"Sent penalty warning to {repayment.customer_name.name} "
                             f"for payment due on {two_days_ago}"
                         )
+
 
                 # Check for penalty charge (3 days after due date)
                 if should_charge_penalty and repayment.outstanding_loan > 0:

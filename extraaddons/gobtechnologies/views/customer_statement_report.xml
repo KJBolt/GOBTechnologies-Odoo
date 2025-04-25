@@ -144,6 +144,44 @@
                             </group>
                         </page>
 
+                        <!-- Relevant Documents Tab -->
+                        <page string="Relevant Documents" name="payment_compliance">
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="customer_ghana_card_front" 
+                                            filename="customer_ghana_card_front_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_front'}"
+                                        />
+                                        <field name="guarantor_ghana_card_front" 
+                                            filename="guarantor_ghana_card_front_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_front'}"
+                                        />
+                                    </group>
+                                    <group>
+                                        <field name="customer_ghana_card_back" 
+                                            filename="customer_ghana_card_back_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_back'}"
+                                        />
+                                        <field name="guarantor_ghana_card_back" 
+                                            filename="guarantor_ghana_card_back_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_back'}"
+                                        />
+                                    </group>
+                                    <group>
+                                        <field name="utility_bill" 
+                                            filename="utility_bill_filename" 
+                                            widget="preview_attachment"
+                                        />
+                                    </group>
+                                </group>
+                            </sheet>
+                        </page>
+
                         <!-- Other Details Tab -->
                         <page string="Other Details" name="Other Details">
                             <sheet>
