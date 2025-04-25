@@ -173,10 +173,16 @@
                                         />
                                     </group>
                                     <group>
-                                        <field name="utility_bill" 
-                                            filename="utility_bill_filename" 
-                                            widget="preview_attachment"
-                                        />
+                                        <group>
+                                            <field name="mobile_money_statement" 
+                                                filename="mobile_money_statement_filename" 
+                                                widget="preview_attachment"
+                                            />
+                                            <field name="utility_bill" 
+                                                filename="utility_bill_filename" 
+                                                widget="preview_attachment"
+                                            />
+                                        </group>
                                     </group>
                                 </group>
                             </sheet>
@@ -334,6 +340,11 @@
         <field name="name">Hire Purchase</field>
         <field name="res_model">repayment</field>
         <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No data available.
+            </p>
+        </field>
     </record>
 
     <!-- <record id="action_weather_page" model="ir.actions.client">

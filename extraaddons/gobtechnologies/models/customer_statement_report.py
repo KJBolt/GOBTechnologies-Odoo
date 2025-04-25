@@ -292,10 +292,11 @@ class Repayment(models.Model):
     guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=True)
     utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=True)
 
 
-    @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back')
+    @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')
     def _check_file_types(self):
         for record in self:
             if record.customer_ghana_card_front:
@@ -371,6 +372,46 @@ class Repayment(models.Model):
                     raise ValidationError(
                         "File size must be less than 10MB!"
                     )
+
+            if record.mobile_money_statement:
+                # Get file content type
+                file_content = base64.b64decode(record.mobile_money_statement)
+                file_type = magic.from_buffer(file_content, mime=True)
+                allowed_types = [
+                    'application/pdf',
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]
+
+                if file_type not in allowed_types:
+                    raise ValidationError("File must be pdf, jpg, jpeg, or png format.")
+
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+            if record.utility_bill:
+                # Get file content type
+                file_content = base64.b64decode(record.utility_bill)
+                file_type = magic.from_buffer(file_content, mime=True)
+                allowed_types = [
+                    'application/pdf',
+                    'image/jpeg',
+                    'image/jpg',
+                    'image/png',
+                ]
+
+                if file_type not in allowed_types:
+                    raise ValidationError("File must be pdf, jpg, jpeg, or png format.")
+
+                if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
+                    raise ValidationError(
+                        "File size must be less than 10MB!"
+                    )
+
+
 
 
     @api.depends('penalty_ids.penalty_amount')
