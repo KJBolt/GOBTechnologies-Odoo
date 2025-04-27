@@ -31,6 +31,17 @@ nav,
     border-color: #72767a !important; 
 }
 
+// Change login button color
+.oe_login_buttons .btn-primary {
+    background-color: #72767a !important;
+    border-color: #72767a !important;
+
+    &:hover {
+        background-color: #72767a !important;
+        border-color: #72767a !important;
+    }
+}
+
 .btn-primary,.btn-outline-primary{
     background-color: #72767a !important;
     border-color: #72767a !important; 

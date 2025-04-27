@@ -10,16 +10,6 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
-    <record id="access_repayment_product_line" model="ir.model.access">
-        <field name="name">Repayment Product Line</field>
-        <field name="model_id" ref="model_repayment_product_line"/>
-        <field name="group_id" ref="base.group_user"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
-        <field name="perm_unlink" eval="True"/>
-    </record>
-
     <record id="access_repayment_payment_line" model="ir.model.access">
         <field name="name">Repayment Payment Line</field>
         <field name="model_id" ref="model_repayment_payment_line"/>
@@ -108,86 +98,20 @@
                         </group>
 
                         <group>
-                            <field name="total_paid" readonly="1" no-open="1"/>
+                            <field name="product" readonly="state in ['cancel', 'paid']" />
                         </group>
                     </group>
                     <group>
                         <group>
-                            <field name="outstanding_loan" readonly="1" no-open="1"/>
+                            <field name="total_paid" readonly="1" no-open="1" />
+                        </group>
+                        <group>
+                            <field name="outstanding_loan" readonly="1" no-open="1" />
                         </group>
                     </group>
 
-                    <!-- Products Tab -->
+                    <!-- Relevant Documents Tab -->
                     <notebook>
-                        <page string="Products" name="Products">
-                            <field name="product_lines" readonly="state in ['cancel', 'paid']">
-                                <tree editable="bottom">
-                                    <field name="product_id"/>
-                                    <field name="amount"/>
-                                    <field name="price"/>
-                                </tree>
-                            </field>
-
-                            <!-- Footer Total Price -->
-                            <group name="note_group" col="6" class="mt-2 mt-md-0">
-                                <group colspan="3">
-                                    <!-- <field colspan="2" name="note" nolabel="1" placeholder="Terms and conditions..."/> -->
-                                </group>
-                                <group class="oe_subtotal_footer" colspan="2" name="total_price">
-                                    <field name="currency_id" invisible="1"/>
-                                    <div style="display:flex; align-items:center;">
-                                        <div style="margin-right: 35px;">Total</div>
-                                        <field name="total_price" widget="monetary" options="{'currency_field': 'currency_id'}" style="font-size: 20px" class="fw-bolder"/>
-                                    </div>
-                                </group>
-                                <div class="clearfix"/>
-                            </group>
-                        </page>
-
-                        <!-- Relevant Documents Tab -->
-                        <page string="Relevant Documents" name="payment_compliance">
-                            <sheet>
-                                <group>
-                                    <group>
-                                        <field name="customer_ghana_card_front" 
-                                            filename="customer_ghana_card_front_filename" 
-                                            widget="image"
-                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_front'}"
-                                        />
-                                        <field name="guarantor_ghana_card_front" 
-                                            filename="guarantor_ghana_card_front_filename" 
-                                            widget="image"
-                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_front'}"
-                                        />
-                                    </group>
-                                    <group>
-                                        <field name="customer_ghana_card_back" 
-                                            filename="customer_ghana_card_back_filename" 
-                                            widget="image"
-                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_back'}"
-                                        />
-                                        <field name="guarantor_ghana_card_back" 
-                                            filename="guarantor_ghana_card_back_filename" 
-                                            widget="image"
-                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_back'}"
-                                        />
-                                    </group>
-                                    <group>
-                                        <group>
-                                            <field name="mobile_money_statement" 
-                                                filename="mobile_money_statement_filename" 
-                                                widget="preview_attachment"
-                                            />
-                                            <field name="utility_bill" 
-                                                filename="utility_bill_filename" 
-                                                widget="preview_attachment"
-                                            />
-                                        </group>
-                                    </group>
-                                </group>
-                            </sheet>
-                        </page>
-
                         <!-- Other Details Tab -->
                         <page string="Other Details" name="Other Details">
                             <sheet>
@@ -228,6 +152,53 @@
                                             <label for="discount" string="Discount"/>
                                         </div>
                                         <field name="discount" readonly="state in ['cancel', 'paid']" nolabel="1"/>
+                                    </group>
+                                    <group>
+                                        <field name="head_of_gob_contact" readonly="state in ['cancel', 'paid']"/>
+                                    </group>
+                                </group>
+                            </sheet>
+                        </page>
+                        
+                        <!-- Relevant Documents Tab -->
+                        <page string="Relevant Documents" name="payment_compliance">
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="customer_ghana_card_front" 
+                                            filename="customer_ghana_card_front_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_front'}"
+                                        />
+                                        <field name="guarantor_ghana_card_front" 
+                                            filename="guarantor_ghana_card_front_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_front'}"
+                                        />
+                                    </group>
+                                    <group>
+                                        <field name="customer_ghana_card_back" 
+                                            filename="customer_ghana_card_back_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'customer_ghana_card_back'}"
+                                        />
+                                        <field name="guarantor_ghana_card_back" 
+                                            filename="guarantor_ghana_card_back_filename" 
+                                            widget="image"
+                                            options="{'size': [80, 80], 'preview_image': 'guarantor_ghana_card_back'}"
+                                        />
+                                    </group>
+                                    <group>
+                                        <group>
+                                            <field name="mobile_money_statement" 
+                                                filename="mobile_money_statement_filename" 
+                                                widget="preview_attachment"
+                                            />
+                                            <field name="utility_bill" 
+                                                filename="utility_bill_filename" 
+                                                widget="preview_attachment"
+                                            />
+                                        </group>
                                     </group>
                                 </group>
                             </sheet>
@@ -309,7 +280,6 @@
                 <field name="unique_id"/>
                 <field name="customer_name"/>
                 <field name="gps_location"/>
-                <field name="product_lines" widget="badge" optional="Hidden"/>
                 <field name="plan" optional="Hidden"/>
                 <field name="start_date"/>
                 <field name="end_date"/>

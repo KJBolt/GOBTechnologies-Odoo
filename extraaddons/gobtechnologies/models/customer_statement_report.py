@@ -155,50 +155,6 @@ class RepaymentPaymentLine(models.Model):
                 _logger.info("Current payment insufficient to cover previous payment shortage")
 
 
-class RepaymentProductLine(models.Model):
-    _name = 'repayment.product.line'
-    _description = 'Repayment Product Line'
-
-    product_id = fields.Many2one(
-        'product.product', 
-        string='Product', 
-        required=True
-    )
-    amount = fields.Integer(
-        string='Amount', 
-        required=True, 
-        default=1
-    )
-    price = fields.Float(
-        string='Price', 
-        compute='_compute_price',
-        store=True
-    )
-    repayment_id = fields.Many2one(
-        'repayment', 
-        string='Repayment', 
-        ondelete='cascade'
-    )
-
-    @api.depends('amount')
-    def _compute_price(self):
-        for record in self:
-            if record.amount and record.product_id:
-                record.price = record.amount * record.product_id.lst_price
-            else:
-                record.price = 0.0
-
-    @api.model
-    def _default_repayment_id(self):
-        return self.env.context.get('default_repayment_id')
-
-    @api.onchange('product_id')
-    def _onchange_product_id(self):
-        if self.product_id:
-            self.price = self.product_id.lst_price
-
-
-
 class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
@@ -209,55 +165,52 @@ class Repayment(models.Model):
         default=lambda self: _('New')
     )
     client_reference = fields.Char(string='Client Reference')
-    customer_name = fields.Many2one('res.partner', string='Customer Name', required=True)
-    gps_location = fields.Char(string='GPS Location', required=True)
-    product_lines = fields.One2many(
-        'repayment.product.line',  # Related model
-        'repayment_id',  # Field in the related model pointing back to this model
-        string='Products',
-    )
+    customer_name = fields.Many2one('res.partner', string='Customer Name', required=False)
+    gps_location = fields.Char(string='GPS Location', required=False)
+    product = fields.Char(string='Product', required=False)
     payment_lines = fields.One2many(
         'repayment.payment.line',  # Related model
         'repayment_id',  # Field in the related model pointing back to this model
         string='Payments',
     )
     plan = fields.Selection([
-        ('30', '30 days'),
-        ('60', '60 days'),
-        ('90', '90 days'),
-        ('120', '120 days'),
+        ('30 days', '30 days'),
+        ('60 days', '60 days'),
+        ('90 days', '90 days'),
+        ('120 days', '120 days'),
         ('cash', 'Cash')
-    ], string='Plan', required=True)
-    start_date = fields.Date(string='Start Date', required=True)
-    selling_price= fields.Float(string='Selling Price', store=True)
-    deposit = fields.Float(string='Deposit', required=True)
+    ], string='Plan', required=False)
+    start_date = fields.Date(string='Start Date', required=False)
+    selling_price= fields.Float(string='Selling Price', store=False)
+    deposit = fields.Float(string='Deposit', required=False)
     repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
-    expected_to_pay = fields.Float(string='Expected to Pay', required=True)
+    expected_to_pay = fields.Float(string='Expected to Pay', required=False)
     repayment_frequency = fields.Selection([
         ('1', 'Daily'),
         ('7', 'Weekly'),
         ('30', 'Monthly'),
         ('0', 'Cash')
-    ], string='Repayment Frequency', required=True)
+    ], string='Repayment Frequency', required=False)
     repayment_date = fields.Date(
         string='Repayment Date',
         compute='_compute_repayment_date',
         store=True
     )
-    last_repayment_date = fields.Date(string='Last Repayment Date', store=True)
-    end_date = fields.Date(string='End Date', required=True)
+    last_repayment_date = fields.Date(string='Last Repayment Date', store=False)
+    end_date = fields.Date(string='End Date', required=False)
     duration_left = fields.Integer(string='Duration Left', compute='_compute_duration_left', store=True)
     due_date = fields.Date(string='Due Date', compute='_compute_due_date', store=True)
     reminder = fields.Char(string='Reminder', compute='_compute_reminder', store=True)
     total_paid = fields.Float(string='Total Paid', compute='_compute_total_paid', store=True)
     outstanding_loan = fields.Float(string='Outstanding Debt', compute='_compute_outstanding_loan', store=True)
-    phone_no = fields.Char(string='Phone No', required=True)
+    phone_no = fields.Char(string='Phone No', required=False)
     penalty = fields.Integer(string='Penalty')
     discount = fields.Integer(string='Discount')
-    percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=True)
+    percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=False)
     paid_to_momo = fields.Float(string='Paid to Momo')
-    guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
-    guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
+    guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=False)
+    guarantor_contact = fields.Char(string='Guarantor Contact', required=False)
+    head_of_gob_contact = fields.Char(string='Head of GOB Contact', required=False)
     state = fields.Selection(
         selection=PAYMENT_STATE,
         string="Status",
@@ -287,13 +240,13 @@ class Repayment(models.Model):
     penalty_ids = fields.One2many('repayment.penalty', 'repayment_id', string='Penalties')
     total_penalties = fields.Float(string='Total Penalties', compute='_compute_total_penalties', store=True)
 
-    customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
-    customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
-    guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
-    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
-    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
-    mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=True)
-    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=True)
+    customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
+    customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
+    guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
+    mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=False)
+    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=False)
 
 
     @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')
@@ -312,7 +265,7 @@ class Repayment(models.Model):
                 ]
 
                 if file_type not in allowed_types:
-                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    raise ValidationError("Ghana Card Front Image must be jpg, jpeg, or png format.")
 
                 # Check file size (e.g., 10MB limit)
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
@@ -331,7 +284,7 @@ class Repayment(models.Model):
                 ]
 
                 if file_type not in allowed_types:
-                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    raise ValidationError("Ghana Card Back Image must be jpg, jpeg, or png format.")
                     
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
                     raise ValidationError(
@@ -349,7 +302,7 @@ class Repayment(models.Model):
                 ]    
 
                 if file_type not in allowed_types:
-                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    raise ValidationError("Guarantor Ghana Card Front Image must be jpg, jpeg, or png format.")
                     
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
                     raise ValidationError(
@@ -366,7 +319,7 @@ class Repayment(models.Model):
                     'image/png',
                 ]
                 if file_type not in allowed_types:
-                    raise ValidationError("Image must be jpg, jpeg, or png format.")
+                    raise ValidationError("Guarantor Ghana Card Back Image must be jpg, jpeg, or png format.")
                     
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
                     raise ValidationError(
@@ -385,7 +338,7 @@ class Repayment(models.Model):
                 ]
 
                 if file_type not in allowed_types:
-                    raise ValidationError("File must be pdf, jpg, jpeg, or png format.")
+                    raise ValidationError("Mobile Money Statement must be pdf, jpg, jpeg, or png format.")
 
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
                     raise ValidationError(
@@ -404,13 +357,12 @@ class Repayment(models.Model):
                 ]
 
                 if file_type not in allowed_types:
-                    raise ValidationError("File must be pdf, jpg, jpeg, or png format.")
+                    raise ValidationError("Utility bill must be pdf, jpg, jpeg, or png format.")
 
                 if len(file_content) > 10 * 1024 * 1024:  # 10MB in bytes
                     raise ValidationError(
                         "File size must be less than 10MB!"
                     )
-
 
 
 
@@ -434,21 +386,27 @@ class Repayment(models.Model):
         vals['state'] = 'progress'
         res = super(Repayment, self).create(vals)
         
-        # Send sms to user upon account creation
-        try:
-            # Get customer name from res.partner
-            customer = self.env['res.partner'].browse(vals.get('customer_name'))
-            customer_name = customer.name if customer else "Customer"
+        # Check if this is an import operation
+        is_import = self.env.context.get('import_file', False)
+        
+        # Only send SMS if this is not an import operation
+        if not is_import:
+            try:
+                # Get customer name from res.partner
+                customer = self.env['res.partner'].browse(vals.get('customer_name'))
+                customer_name = customer.name if customer else "Customer"
 
-            # Prepare SMS message
-            sms_message = f"Dear {customer_name}, your account has been successfully created with GOB Technologies."
+                # Prepare SMS message
+                sms_message = f"Dear {customer_name}, your account has been successfully created with GOB Technologies."
 
-            # Send SMS
-            if res.phone_no:
-                self._send_hubtel_sms(res.phone_no, sms_message, customer_name)
+                # Send SMS
+                if res.phone_no:
+                    self._send_hubtel_sms(res.phone_no, sms_message, customer_name)
             
-        except Exception as e:
-            _logger.error(f"Error sending welcome SMS: {str(e)}")
+            except Exception as e:
+                _logger.error(f"Error sending welcome SMS: {str(e)}")
+        else:
+            _logger.info("Successfully imported record")
 
         return res
 
@@ -463,19 +421,6 @@ class Repayment(models.Model):
         
         return res
 
-
-    # Ensure the product_lines field is not empty
-    @api.constrains('product_lines')
-    def _check_product_lines(self):
-        for record in self:
-            if not record.product_lines:
-                raise ValidationError("You must add at least one product before proceeding.")
-
-    # Update the total price and selling price upon update
-    @api.depends('product_lines.price', 'product_lines.amount')
-    def _compute_total_price(self):
-        for record in self:
-            record.total_price = sum(line.price * line.amount for line in record.product_lines)
 
     # Show overdue badge if todays date is greater than end date
     @api.depends('repayment_date', 'end_date', 'total_paid', 'selling_price')
@@ -677,14 +622,34 @@ class Repayment(models.Model):
 
             _logger.info(f"Payments found: {payments_on_date}")
             _logger.info(f"Repayment Date, Total payment: {record.repayment_date}, {total_payment}")
+
+            if record.state == 'paid':
+                record.is_payment_missed = False
+                continue
             
             if payments_on_date:
                 if total_payment < record.expected_to_pay:
                     record.is_payment_missed = True
                 else:
                     record.is_payment_missed = False
+
+                if record.state == 'paid':
+                    record.is_payment_missed = False
             else:
                 record.is_payment_missed = record.repayment_date < today
+
+    # Check if payment is missed runs every minute
+    def check_payment_missed(self):
+        today = fields.Date.today()
+        for record in self:
+            if not record.repayment_date:
+                record.is_payment_missed = False
+                continue
+
+            if record.repayment_date < today:
+                record.is_payment_missed = True
+                continue
+
 
 
     # Send SMS to customer
@@ -828,14 +793,43 @@ class Repayment(models.Model):
                     total_recent_payment = sum(recent_payments.mapped('payment_amount'))
                     
                     if not recent_payments or total_recent_payment < repayment.expected_to_pay:
-                        final_termination_message = (
+                        # Message for customer
+                        customer_message = (
                             f"Dear {repayment.customer_name.name}, "
                             f"Due to non-payment for the past 14 days, "
                             f"your contract with GOB Technologies has been terminated. "
+                            f"Please contact our office immediately to resolve this issue."
+                        )
+
+                        # Message for guarantor
+                        guarantor_message = (
+                            f"Dear {repayment.guarantor_name.name}, "
+                            f"This is to inform you that {repayment.customer_name.name}, "
+                            f"for whom you stood as guarantor, has defaulted on their payment, "
+                            f"for the past 14 days. "
+                            f"As a guarantor, you may be contacted regarding this matter."
+                        )
+
+                        # Message for Head of GOB Technologies
+                        head_message = (
+                            f"TERMINATION NOTICE\n"
+                            f"Customer: {repayment.customer_name.name}\n"
+                            f"Phone: {repayment.phone_no}\n"
+                            f"Outstanding Balance: GHS {repayment.outstanding_loan}\n"
+                            f"Default Duration: 14+ days\n"
+                            f"Guarantor: {repayment.guarantor_name.name}\n"
+                            f"Guarantor Phone: {repayment.guarantor_phone}\n"
+                            f"Contract has been automatically terminated due to payment default."
                         )
                         
                         if repayment.phone_no:
                             self._send_hubtel_sms(repayment.phone_no, final_termination_message, repayment.customer_name.name)
+
+                        if repayment.guarantor_contact:
+                            self._send_hubtel_sms(repayment.guarantor_contact, guarantor_message, repayment.guarantor_name.name)
+
+                        if repayment.head_of_gob_contact:
+                            self._send_hubtel_sms(repayment.head_of_gob_contact, head_message, "Head of GOB Technologies")
                         
                         _logger.info(
                             f"Sent final termination notice to {repayment.customer_name.name} "
