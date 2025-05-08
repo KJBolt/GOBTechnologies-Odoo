@@ -22,15 +22,15 @@ class RepaymentPaymentLine(models.Model):
     _name = 'repayment.payment.line'
     _description = 'Repayment Payment Line'
 
-    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', invisible=True)
-    payment_date = fields.Date(string='Date of Payment', required=True)
+    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', required=False)
+    payment_date = fields.Date(string='Date of Payment', required=False)
     payment_mode = fields.Selection([
         ('cash', 'Cash'),
         ('momo', 'Mobile Money'),
         ('cheque', 'Cheque'),
         ('bank', 'Bank Transfer')
-    ], string='Mode of Payment', required=True)
-    payment_amount = fields.Float(string='Payment Amount', required=True)
+    ], string='Mode of Payment', required=False)
+    payment_amount = fields.Float(string='Payment Amount', required=False)
     # payment_date = fields.Date(string='Payment Date', required=True)
     is_payment_insufficient = fields.Boolean(
         string='Payment Insufficient',
@@ -42,7 +42,7 @@ class RepaymentPaymentLine(models.Model):
         compute='_compute_payment_status',
         store=True
     )
-
+    
     # This field is needed for underpayment expected to pay field
     expected_amount = fields.Float(
         string='Expected Amount',
@@ -82,6 +82,26 @@ class RepaymentPaymentLine(models.Model):
             repayment.write({'state': 'paid'})
         else:
             repayment.write({'state': 'progress'})
+
+        # send outstanding balance sms message after payment
+        try:
+            customer_name = repayment.customer_name.name
+            outstanding_balance = repayment.outstanding_loan
+            payment_amount = vals.get('payment_amount', 0)
+            
+            # Prepare SMS message
+            sms_message = f"Dear {customer_name}, thank you for your payment of {payment_amount} GHC. Your outstanding balance is {outstanding_balance} GHC."
+            
+            # Send SMS if phone number exists
+            if repayment.phone_no:
+                repayment._send_hubtel_sms(repayment.phone_no, sms_message, customer_name)
+                _logger.info(f"Payment SMS sent to {repayment.phone_no}")
+            else:
+                _logger.warning(f"Could not send payment SMS: No phone number for {customer_name}")
+                
+        except Exception as e:
+            _logger.error(f"Error sending payment SMS: {str(e)}")
+        
         
         res.testpayment(vals)
         return res
@@ -102,57 +122,68 @@ class RepaymentPaymentLine(models.Model):
         return res
 
     def testpayment(self, vals):
+        
         # Get current payment date and amount
         current_payment_date = fields.Date.from_string(vals.get('payment_date'))
         current_payment_amount = vals.get('payment_amount')
-        previous_payment_date = current_payment_date - timedelta(days=1)
 
-        _logger.info(f"Previous payment date: {previous_payment_date}")
-        _logger.info(f"Current payment amount: {current_payment_amount}")
-        _logger.info(f"Current payment date: {current_payment_date}")
-
-        # Get all payments for the previous date
-        previous_date_payments = self.repayment_id.payment_lines.filtered(
-            lambda p: p.payment_date == previous_payment_date
-        )
+        if current_payment_date and current_payment_amount:
+            previous_payment_date = current_payment_date - timedelta(days=1)
         
-        previous_payment_total = sum(previous_date_payments.mapped('payment_amount'))
+            _logger.info(f"Previous payment date: {previous_payment_date}")
+            _logger.info(f"Current payment amount: {current_payment_amount}")
+            _logger.info(f"Current payment date: {current_payment_date}")
 
-        # Check if previous payment was insufficient
-        if previous_date_payments and previous_payment_total < self.repayment_id.expected_to_pay:
-            shortage = self.repayment_id.expected_to_pay - previous_payment_total
+            # Get all payments for the previous date
+            previous_date_payments = self.repayment_id.payment_lines.filtered(
+                lambda p: p.payment_date == previous_payment_date
+            )
             
-            # If current payment can cover the shortage
-            if current_payment_amount >= shortage:
-                # Amount to be used from current payment
-                amount_to_previous = shortage
-                # Remaining amount for current payment
-                remaining_current = current_payment_amount - shortage
+            previous_payment_total = sum(previous_date_payments.mapped('payment_amount'))
+
+            # Check if previous payment was insufficient
+            if previous_date_payments and previous_payment_total < self.repayment_id.expected_to_pay:
+                shortage = self.repayment_id.expected_to_pay - previous_payment_total
                 
-                if previous_date_payments:
-                    # Update existing previous payment
-                    previous_date_payments[0].write({
-                        'payment_amount': previous_payment_total + amount_to_previous
+                # If current payment can cover the shortage
+                if current_payment_amount >= shortage:
+                    # Amount to be used from current payment
+                    amount_to_previous = shortage
+                    # Remaining amount for current payment
+                    remaining_current = current_payment_amount - shortage
+                    
+                    if previous_date_payments:
+                        # Update existing previous payment
+                        previous_date_payments[0].write({
+                            'payment_amount': previous_payment_total + amount_to_previous
+                        })
+                        
+                        # Send SMS to customer
+                        phone_no = self.repayment_id.phone_no
+                        customer_name = self.repayment_id.customer_name.name
+                        sms_message = f"Dear {customer_name}, a portion of GHS{current_payment_amount}, has been used to cover the previous payment shortage of GHS{previous_payment_total}. Your outstanding balance is GHS{remaining_current}. "
+
+                        self.repayment_id._send_hubtel_sms(phone_no, sms_message, customer_name)
+
+                    else:
+                        # Create new payment record for previous date
+                        self.env['repayment.payment.line'].create({
+                            'payment_date': previous_payment_date,
+                            'payment_amount': amount_to_previous,
+                            'repayment_id': self.repayment_id.id,
+                            'payment_mode': 'momo'  
+                        })
+
+                    # Update the current payment with remaining amount
+                    self.write({
+                        'payment_amount': remaining_current
                     })
+
+                    _logger.info(f"Previous payment was insufficient. Added {amount_to_previous} from current payment")
+                    _logger.info(f"Previous payment updated to: {previous_payment_total + amount_to_previous}")
+                    _logger.info(f"Current payment updated to: {remaining_current}")
                 else:
-                    # Create new payment record for previous date
-                    self.env['repayment.payment.line'].create({
-                        'payment_date': previous_payment_date,
-                        'payment_amount': amount_to_previous,
-                        'repayment_id': self.repayment_id.id,
-                        'payment_mode': 'momo'  
-                    })
-
-                # Update the current payment with remaining amount
-                self.write({
-                    'payment_amount': remaining_current
-                })
-
-                _logger.info(f"Previous payment was insufficient. Added {amount_to_previous} from current payment")
-                _logger.info(f"Previous payment updated to: {previous_payment_total + amount_to_previous}")
-                _logger.info(f"Current payment updated to: {remaining_current}")
-            else:
-                _logger.info("Current payment insufficient to cover previous payment shortage")
+                    _logger.info("Current payment insufficient to cover previous payment shortage")
 
 
 class Repayment(models.Model):
@@ -181,7 +212,7 @@ class Repayment(models.Model):
         ('cash', 'Cash')
     ], string='Plan', required=False)
     start_date = fields.Date(string='Start Date', required=False)
-    selling_price= fields.Float(string='Selling Price', store=False)
+    selling_price= fields.Float(string='Selling Price', required=False)
     deposit = fields.Float(string='Deposit', required=False)
     repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=False)
@@ -206,7 +237,7 @@ class Repayment(models.Model):
     phone_no = fields.Char(string='Phone No', required=False)
     penalty = fields.Integer(string='Penalty')
     discount = fields.Integer(string='Discount')
-    percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=False)
+    percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=True)
     paid_to_momo = fields.Float(string='Paid to Momo')
     guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=False)
     guarantor_contact = fields.Char(string='Guarantor Contact', required=False)
@@ -363,8 +394,6 @@ class Repayment(models.Model):
                     raise ValidationError(
                         "File size must be less than 10MB!"
                     )
-
-
 
     @api.depends('penalty_ids.penalty_amount')
     def _compute_total_penalties(self):
@@ -682,10 +711,10 @@ class Repayment(models.Model):
                 _logger.info(f"SMS sent successfully to {phone}")
                 
                 # Send notification to user
-                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-                notification_type = 'notify_user'
-                message = {'msg': f'Account creation sms sent to {customer_name}'}
-                self.env['bus.bus']._sendone(channel, notification_type, message)
+                # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                # notification_type = 'notify_user'
+                # message = {'msg': f'Account creation sms sent to {customer_name}'}
+                # self.env['bus.bus']._sendone(channel, notification_type, message)
                 return True
             else:
                 _logger.error(f"Failed to send SMS. Status: {response.status_code}, Response: {response.text}")
@@ -705,7 +734,8 @@ class Repayment(models.Model):
         two_days_ago = today - timedelta(days=2)
         three_days_ago = today - timedelta(days=3)
         seven_days_ago = today - timedelta(days=7)
-        fourteen_days_ago = today - timedelta(days=14)  # Add this line
+        eleven_days_ago = today - timedelta(days=10)
+        fourteen_days_ago = today - timedelta(days=14) 
         
         # Find all active repayments
         repayments = self.search([
@@ -725,6 +755,7 @@ class Repayment(models.Model):
                 should_send_penalty_reminder = False
                 should_charge_penalty = False
                 should_send_termination_warning = False
+                should_send_termination_warning_two = False
                 should_send_final_termination = False
                 
                 if repayment.repayment_frequency == '1':  # Daily
@@ -733,22 +764,30 @@ class Repayment(models.Model):
                     should_send_penalty_reminder = two_days_ago == repayment.repayment_date
                     should_charge_penalty = three_days_ago == repayment.repayment_date
                     should_send_termination_warning = seven_days_ago >= repayment.repayment_date
+                    should_send_termination_warning_two = eleven_days_ago >= repayment.repayment_date
                     should_send_final_termination = fourteen_days_ago >= repayment.repayment_date
-                elif repayment.repayment_frequency == '7':  # Weekly
+                elif repayment.repayment_frequency == '7':
+                    if repayment.repayment_date:
+                        continue
+                    # Weekly
                     days_since_payment = (today - repayment.repayment_date).days
                     should_remind = (repayment.repayment_date - tomorrow).days == 0
                     is_overdue = days_since_payment == 1
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
                     should_send_termination_warning = days_since_payment >= 7
+                    should_send_termination_warning_two = days_since_payment >= 11
                     should_send_final_termination = days_since_payment >= 14
-                elif repayment.repayment_frequency == '30':  # Monthly
+                elif repayment.repayment_frequency == '30':
+                    if repayment.repayment_date:
+                        continue  # Monthly
                     days_since_payment = (today - repayment.repayment_date).days
                     should_remind = (repayment.repayment_date - tomorrow).days == 0
                     is_overdue = days_since_payment == 1
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
                     should_send_termination_warning = days_since_payment >= 7
+                    should_send_termination_warning_two = days_since_payment >= 11
                     should_send_final_termination = days_since_payment >= 14
                 elif repayment.repayment_frequency == '0':  # Cash
                     continue
@@ -765,7 +804,8 @@ class Repayment(models.Model):
                         termination_warning_message = (
                             f"Dear {repayment.customer_name.name}, "
                             f"your contract with GOB Technologies terminates, "
-                            f"if payment is not received within the next 14 days. "
+                            f"in 14 days if payment is not made today. "
+                            f"We shall retrieve our item & refund 50% of your deposit into your momo account. "
                             f"Kindly dial *713*7678# to make immediate payment. "
                             f"Thank you for choosing GOB Technologies."
                         )
@@ -783,6 +823,35 @@ class Repayment(models.Model):
                             repayment.write({
                                 'state': 'termination_warning'
                             })
+
+
+
+                # Handle termination warning period (10-14 days)
+                if should_send_termination_warning_two and repayment.outstanding_loan > 0:
+                    # Check if any payments were made in the last 10 days
+                    recent_payments = repayment.payment_lines.filtered(
+                        lambda p: p.payment_date >= eleven_days_ago
+                    )
+                    total_recent_payment = sum(recent_payments.mapped('payment_amount'))
+
+                    if not recent_payments or total_recent_payment < repayment.expected_to_pay:
+                        termination_warning_message_two = (
+                            f"Dear {repayment.customer_name.name}, "
+                            f"your contract with GOB Technologies terminates, "
+                            f"in 3 days if payment is not made today. "
+                            f"We shall retrieve our item & refund 50% of your deposit into your momo account. "
+                            f"Kindly dial *713*7678# to make immediate payment. Thank you for choosing GOB Technologies. "
+                        )
+                        if repayment.phone_no:
+                            self._send_hubtel_sms(repayment.phone_no, termination_warning_message_two, repayment.customer_name.name)
+
+                        # Update the state to indicate termination warning
+                        if repayment.state != 'termination_warning':
+                            repayment.write({
+                                'state': 'termination_warning'
+                            })
+
+
 
                 # Handle final termination (after 14 days)
                 if should_send_final_termination and repayment.outstanding_loan > 0:
@@ -840,6 +909,7 @@ class Repayment(models.Model):
                         repayment.write({
                             'state': 'terminated'
                         })
+
 
 
                 # Send reminder for upcoming payment

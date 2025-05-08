@@ -7,12 +7,12 @@
 
     <!-- Hide Contacts Menu Item -->
     <record id="contacts.menu_contacts" model="ir.ui.menu">
-        <field name="active">False</field>
+        <field name="active">True</field>
     </record>
 
     <!-- Hide Inventory Menu Item -->
     <record id="stock.menu_stock_root" model="ir.ui.menu">
-        <field name="active">True</field>
+        <field name="active">False</field>
     </record>
 
 
