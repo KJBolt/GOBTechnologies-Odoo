@@ -10,7 +10,7 @@
         'base_setup',
         'web',
         'base', 
-        'contacts', 
+        'contacts',
         'stock'
     ],
     'data': [

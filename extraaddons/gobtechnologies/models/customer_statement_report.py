@@ -18,6 +18,7 @@ PAYMENT_STATE = [
     ('terminated', "Terminated"),
 ]
 
+
 class RepaymentPaymentLine(models.Model):
     _name = 'repayment.payment.line'
     _description = 'Repayment Payment Line'
@@ -31,7 +32,6 @@ class RepaymentPaymentLine(models.Model):
         ('bank', 'Bank Transfer')
     ], string='Mode of Payment', required=False)
     payment_amount = fields.Float(string='Payment Amount', required=False)
-    # payment_date = fields.Date(string='Payment Date', required=True)
     is_payment_insufficient = fields.Boolean(
         string='Payment Insufficient',
         compute='_compute_is_payment_insufficient',
@@ -55,6 +55,7 @@ class RepaymentPaymentLine(models.Model):
     def _compute_is_payment_insufficient(self):
         for record in self:
             record.is_payment_insufficient = record.payment_amount < record.repayment_id.expected_to_pay
+
 
     @api.depends('payment_amount', 'repayment_id.expected_to_pay')
     def _compute_payment_status(self):
@@ -102,7 +103,6 @@ class RepaymentPaymentLine(models.Model):
         except Exception as e:
             _logger.error(f"Error sending payment SMS: {str(e)}")
         
-        
         res.testpayment(vals)
         return res
         
@@ -120,6 +120,7 @@ class RepaymentPaymentLine(models.Model):
             repayment.write({'state': 'progress'})
 
         return res
+
 
     def testpayment(self, vals):
         
@@ -186,6 +187,13 @@ class RepaymentPaymentLine(models.Model):
                     _logger.info("Current payment insufficient to cover previous payment shortage")
 
 
+
+
+
+
+
+
+
 class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
@@ -195,10 +203,10 @@ class Repayment(models.Model):
         required=True, copy=False, readonly=True, index=True,
         default=lambda self: _('New')
     )
-    client_reference = fields.Char(string='Client Reference')
-    customer_name = fields.Many2one('res.partner', string='Customer Name', required=False)
-    gps_location = fields.Char(string='GPS Location', required=False)
-    product = fields.Char(string='Product', required=False)
+    # client_reference = fields.Char(string='Client Reference')
+    customer_name = fields.Many2one('res.partner', string='Customer Name', required=True)
+    gps_location = fields.Char(string='GPS Location', required=True)
+    product = fields.Char(string='Product', required=True)
     payment_lines = fields.One2many(
         'repayment.payment.line',  # Related model
         'repayment_id',  # Field in the related model pointing back to this model
@@ -210,38 +218,38 @@ class Repayment(models.Model):
         ('90 days', '90 days'),
         ('120 days', '120 days'),
         ('cash', 'Cash')
-    ], string='Plan', required=False)
-    start_date = fields.Date(string='Start Date', required=False)
-    selling_price= fields.Float(string='Selling Price', required=False)
-    deposit = fields.Float(string='Deposit', required=False)
+    ], string='Plan', required=True)
+    start_date = fields.Date(string='Start Date', required=True)
+    selling_price= fields.Float(string='Selling Price', required=True)
+    deposit = fields.Float(string='Deposit', required=True)
     repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
-    expected_to_pay = fields.Float(string='Expected to Pay', required=False)
+    expected_to_pay = fields.Float(string='Expected to Pay', required=True)
     repayment_frequency = fields.Selection([
         ('1', 'Daily'),
         ('7', 'Weekly'),
         ('30', 'Monthly'),
         ('0', 'Cash')
-    ], string='Repayment Frequency', required=False)
+    ], string='Repayment Frequency', required=True)
     repayment_date = fields.Date(
         string='Repayment Date',
         compute='_compute_repayment_date',
         store=True
     )
-    last_repayment_date = fields.Date(string='Last Repayment Date', store=False)
-    end_date = fields.Date(string='End Date', required=False)
+    # last_repayment_date = fields.Date(string='Last Repayment Date', store=False)
+    end_date = fields.Date(string='End Date', required=True)
     duration_left = fields.Integer(string='Duration Left', compute='_compute_duration_left', store=True)
     due_date = fields.Date(string='Due Date', compute='_compute_due_date', store=True)
     reminder = fields.Char(string='Reminder', compute='_compute_reminder', store=True)
     total_paid = fields.Float(string='Total Paid', compute='_compute_total_paid', store=True)
     outstanding_loan = fields.Float(string='Outstanding Debt', compute='_compute_outstanding_loan', store=True)
-    phone_no = fields.Char(string='Phone No', required=False)
+    phone_no = fields.Char(string='Phone No', required=True)
     penalty = fields.Integer(string='Penalty')
     discount = fields.Integer(string='Discount')
     percentage_paid = fields.Float(string='Percentage Paid', compute='_compute_percentage_paid', store=True)
     paid_to_momo = fields.Float(string='Paid to Momo')
-    guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=False)
-    guarantor_contact = fields.Char(string='Guarantor Contact', required=False)
-    head_of_gob_contact = fields.Char(string='Head of GOB Contact', required=False)
+    guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
+    guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
+    head_of_gob_contact = fields.Char(string='Head of GOB Contact', help="This phone number is used to send messages to GOB management", required=True)
     state = fields.Selection(
         selection=PAYMENT_STATE,
         string="Status",
@@ -271,6 +279,7 @@ class Repayment(models.Model):
     penalty_ids = fields.One2many('repayment.penalty', 'repayment_id', string='Penalties')
     total_penalties = fields.Float(string='Total Penalties', compute='_compute_total_penalties', store=True)
 
+    # Relevant documents fields
     customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
     customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
     guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
@@ -278,6 +287,16 @@ class Repayment(models.Model):
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
     mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=False)
     utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=False)
+
+    # Invoice field
+    branch = fields.Char(string='Branch', required=True)
+    invoice_no = fields.Char(string='Invoice No', required=True)
+    invoice_payment_method = fields.Selection([
+        ('pay_at_once', 'Pay At Once'),
+        ('pay_in_installments', 'Pay In Installments'),
+        ('auto_debit', 'Pay In Installments with Auto Debit')
+    ], string='Payment Method', required=True)
+    note = fields.Text(string='Note', required=True)
 
 
     @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')

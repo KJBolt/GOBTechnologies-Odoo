@@ -64,9 +64,9 @@
                         </group>
                         <group name="other_details">
                             <div class="o_td_label">
-                                <label for="client_reference" string="Client Reference"/>
+                                <label for="phone_no" string="Phone Number"/>
                             </div>
-                            <field name="client_reference" placeholder="Client Reference" nolabel="1" readonly="state in ['cancel', 'paid']"/>
+                            <field name="phone_no" placeholder="Phone Number" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                             <div class="o_td_label">
                                 <label for="plan" string="Plan"/>
@@ -112,6 +112,27 @@
 
                     <!-- Relevant Documents Tab -->
                     <notebook>
+                        <!-- Invoice Details -->
+                        <page string="Invoice Details" name="invoice_details">
+                            <sheet>
+                                <group string="Business Details">
+                                    <field name="branch" />
+                                </group>
+
+                                <group>
+                                    <field name="invoice_no" />
+                                </group>
+
+                                <group string="How do you want this customer to pay for this invoice?">
+                                    <field name="invoice_payment_method" />
+                                </group>
+
+                                <group string="Add a Note">
+                                    <field name="note" />
+                                </group>
+                            </sheet>
+                        </page>
+
                         <!-- Other Details Tab -->
                         <page string="Other Details" name="Other Details">
                             <sheet>
@@ -131,9 +152,9 @@
                                         <field name="repayment_frequency" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                                         <div class="o_td_label">
-                                            <label for="phone_no" string="Phone No"/>
+                                            <label for="head_of_gob_contact" string="GOB Phone Number"/>
                                         </div>
-                                        <field name="phone_no" readonly="state in ['cancel', 'paid']" nolabel="1"/>
+                                        <field name="head_of_gob_contact" readonly="state in ['cancel', 'paid']" nolabel="1"/>
                                     </group>
                                 </group>
 
@@ -152,9 +173,6 @@
                                             <label for="discount" string="Discount"/>
                                         </div>
                                         <field name="discount" readonly="state in ['cancel', 'paid']" nolabel="1"/>
-                                    </group>
-                                    <group>
-                                        <field name="head_of_gob_contact" readonly="state in ['cancel', 'paid']"/>
                                     </group>
                                 </group>
                             </sheet>
