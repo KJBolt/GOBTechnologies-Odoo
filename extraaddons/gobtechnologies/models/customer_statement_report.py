@@ -7,6 +7,7 @@ import requests
 import json
 import base64
 import magic
+import datetime
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +18,17 @@ PAYMENT_STATE = [
     ('termination_warning', "Termination Warning"),
     ('terminated', "Terminated"),
 ]
+
+
+class RepaymentItemLine(models.Model):
+    _name = 'repayment.item.line'
+    _description = 'Repayment Item Line'
+
+    repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', required=False)
+    product_id = fields.Char(string='Product', required=True)
+    quantity = fields.Float(string='Quantity', required=True)
+    price = fields.Float(string='Price', required=True)
+
 
 
 class RepaymentPaymentLine(models.Model):
@@ -206,12 +218,18 @@ class Repayment(models.Model):
     # client_reference = fields.Char(string='Client Reference')
     customer_name = fields.Many2one('res.partner', string='Customer Name', required=True)
     gps_location = fields.Char(string='GPS Location', required=True)
-    product = fields.Char(string='Product', required=True)
     payment_lines = fields.One2many(
         'repayment.payment.line',  # Related model
         'repayment_id',  # Field in the related model pointing back to this model
         string='Payments',
     )
+
+    product_lines = fields.One2many(
+        'repayment.item.line',  # Related model
+        'repayment_id',  # Field in the related model pointing back to this model
+        string='Products',
+    )
+
     plan = fields.Selection([
         ('30 days', '30 days'),
         ('60 days', '60 days'),
@@ -278,6 +296,7 @@ class Repayment(models.Model):
     ], string='Payment Status', compute='_compute_payment_status', store=True)
     penalty_ids = fields.One2many('repayment.penalty', 'repayment_id', string='Penalties')
     total_penalties = fields.Float(string='Total Penalties', compute='_compute_total_penalties', store=True)
+    
 
     # Relevant documents fields
     customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
@@ -291,12 +310,17 @@ class Repayment(models.Model):
     # Invoice field
     branch = fields.Char(string='Branch', required=True)
     invoice_no = fields.Char(string='Invoice No', required=True)
+    is_before = fields.Selection([
+        ('true', 'True'),
+        ('false', 'False')
+    ], string='Is Before', required=True, default='false')
     invoice_payment_method = fields.Selection([
-        ('pay_at_once', 'Pay At Once'),
-        ('pay_in_installments', 'Pay In Installments'),
+        # ('pay_at_once', 'Pay At Once'),
+        # ('pay_in_installments', 'Pay In Installments'),
         ('auto_debit', 'Pay In Installments with Auto Debit')
     ], string='Payment Method', required=True)
-    note = fields.Text(string='Note', required=True)
+    note = fields.Text(string='Note', required=False)
+    payment_url = fields.Char(string="Payment Url", required=False)
 
 
     @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')
@@ -414,16 +438,211 @@ class Repayment(models.Model):
                         "File size must be less than 10MB!"
                     )
 
+
     @api.depends('penalty_ids.penalty_amount')
     def _compute_total_penalties(self):
         for record in self:
             record.total_penalties = sum(record.penalty_ids.mapped('penalty_amount'))
 
+
+
     # Compute the repayment amount
-    @api.depends('payment_lines.payment_amount')
+    @api.depends('payment_lines.payment_amount', 'expected_to_pay')
     def _compute_repayment(self):
         for rec in self:
-            rec.repayment = sum(rec.payment_lines.mapped('payment_amount'))
+            rec.repayment = rec.expected_to_pay  # Initialize with expected amount
+            if rec.payment_lines:
+                rec.repayment = sum(rec.payment_lines.mapped('payment_amount'))
+
+
+
+    # Fetch Invoicing api
+    def fetch_invoicing_api(self, vals):
+        # Get customer name from the ID
+        customer_id = vals.get('customer_name')
+        customer_name = ""
+        if customer_id:
+            customer = self.env['res.partner'].browse(customer_id)
+            if not customer:
+                raise UserError('Customer not found on the system')
+            customer_name = customer.name
+        else:
+            raise UserError('Customer ID not provided')
+
+        # Scrutinize the repayment frequency
+        repayment_frequency_scrutinized = ''
+        if vals.get('repayment_frequency') == '1':
+            repayment_frequency_scrutinized = 'Daily'
+        elif vals.get('repayment_frequency') == '7':
+            repayment_frequency_scrutinized = 'Weekly'
+        elif vals.get('repayment_frequency') == '30':
+            repayment_frequency_scrutinized = 'Monthly'
+        else:
+            raise UserError('Invalid repayment frequency')
+
+        # Get other input values
+        phone_no = vals.get('phone_no')
+        invoice_no = vals.get('invoice_no')
+        callback_url = 'http://localhost:8069/web/hook/1647b136-1c9c-4d99-8b2f-c0babb384e75'
+        issue_by = vals.get('branch')
+        created_by = vals.get("branch")
+        start_date = vals.get("start_date")
+        end_date = vals.get("end_date")
+        has_tax = ''
+        days = int(vals.get('repayment_frequency', '0'))
+        first_payment_amount = vals.get('deposit')
+        frequency = repayment_frequency_scrutinized
+        is_before = vals.get('is_before', 'false')
+        
+
+
+        # raise UserError(
+        #     f"Customer Name: {customer_name}"
+        #     f"Phone No: {phone_no} "
+        #     f"Invoice No: {invoice_no} "
+        #     f"Callback Url: {callback_url} "
+        #     f"Issued By: {issue_by} "
+        #     f"Created By: {created_by} "
+        #     f"Start Date: {start_date} "
+        #     f"End Date: {end_date} "
+        #     f"Has Tax: {has_tax} "
+        #     f"Days: {days} "
+        #     f"First Payment Frequency: {first_payment_amount} "
+        #     f"Frequency: {frequency} "
+        #     f"Is Before: {is_before} "
+        #     f"Item Lines: {item_lines} "
+        # )
+
+
+        # Format dates in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)
+        def format_date_to_iso8601(date_value):
+            """Convert date to ISO 8601 format expected by the API"""
+            if not date_value:
+                return None
+            
+            # Convert to date object if it's a string
+            if isinstance(date_value, str):
+                try:
+                    date_obj = fields.Date.from_string(date_value)
+                except ValueError:
+                    raise UserError(f'Invalid date format: {date_value}')
+            else:
+                date_obj = date_value
+            
+            # Convert date to datetime at midnight
+            dt = datetime.datetime.combine(date_obj, datetime.time.min)
+            # Format in ISO 8601 format
+            return dt.isoformat() + "Z"
+
+        
+        # Process start date
+        start_date_obj = None
+        if start_date:
+            if isinstance(start_date, str):
+                start_date_obj = fields.Date.from_string(start_date)
+            else:
+                start_date_obj = start_date
+        
+        
+        # Format start date for API
+        start_date_formatted = format_date_to_iso8601(start_date_obj)
+
+        # end date formatted
+        end_date_obj = None
+        if end_date:
+            if isinstance(end_date, str):
+                end_date_obj = fields.Date.from_string(end_date)
+            else:
+                end_date_obj = end_date
+
+        # Format end date for API
+        end_date_formatted = format_date_to_iso8601(end_date_obj)
+        
+        # Calculate and format first payment due date
+        first_payment_due_date = None
+        if start_date_obj and vals.get('repayment_frequency'):
+            freq = int(vals.get('repayment_frequency'))
+            
+            if freq == 1:  # Daily
+                first_payment_due_date = start_date_obj
+            elif freq == 7:  # Weekly
+                first_payment_due_date = start_date_obj + timedelta(weeks=1)
+            elif freq == 30:  # Monthly
+                first_payment_due_date = start_date_obj + relativedelta(months=1)
+            else:
+                first_payment_due_date = start_date_obj
+        first_payment_due_date_formatted = format_date_to_iso8601(first_payment_due_date)
+
+        _logger.info(f"End Date Formatted: {end_date_formatted}, First Payment Due Date Formatted: {first_payment_due_date_formatted}")
+
+        item_lines = self.env['repayment.item.line'].search([])
+        for item_line in item_lines:
+            _logger.info(f"Product: {item_line.product_id}, Quantity: {item_line.quantity}, Price: {item_line.price}")
+
+        
+
+        # Create payload
+        payload = {
+            "invoiceNumber": invoice_no,
+            "customerName": customer_name,
+            "customerPhoneNumber": phone_no,
+            "IssuedBy": issue_by,
+            "createdBy": created_by,
+            "dueDate": end_date_formatted,
+            "callbackUrl": callback_url,
+            "firstPaymentDueDate": first_payment_due_date_formatted,
+            "firstPaymentAmount": first_payment_amount,
+            "frequency": frequency,
+            "reminders": [
+                {
+                    "days": days,
+                    "isBefore": is_before == 'true'
+                }
+            ],
+            "items": [
+                {
+                    "description": item_line.product_id or 'Auto Debit test',
+                    "quantity": int(item_line.quantity),
+                    "unit_price": item_line.price
+                }
+                for item_line in item_lines
+            ]
+        }
+        
+        # Send request
+        headers = {
+            "Host": "invoicing.hubtel.com",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "Basic TmtNdnpvODo3MmMzZWYxZWFhNzQ0OGMxYjVhMjE4YzE1YWRmYWMxZg==",
+            "Cache-Control": "no-cache",
+        }
+        url = f"https://invoicing.hubtel.com/api/invoice/2030161/auto-debit"
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            _logger.info(f"Response: {response.text}")
+            if response.status_code == 200:
+                _logger.info(f"Response Data: {response.json()['data']['invoiceId']}")
+                # Update the record with the invoice ID
+                self.write({
+                    'invoice_id': response.json()['data']['invoiceId'],
+                    'payment_url': response.json()['data']['paymentUrl']
+                })
+
+                # Send notification to user
+                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                notification_type = 'invoice'
+                message = {'msg': f'Invoice generated successfully'}
+                self.env['bus.bus']._sendone(channel, notification_type, message)
+            else:
+                raise UserError(f"Failed to create invoice: {response.text}")
+        except Exception as e:
+            _logger.error(f"Exception during API call: {str(e)}")
+            raise UserError(f"Failed to create invoice: {str(e)}")
+
+
+
 
     # Set state to progress and generate a unique id for repayment when record is created
     @api.model
@@ -433,11 +652,13 @@ class Repayment(models.Model):
         
         vals['state'] = 'progress'
         res = super(Repayment, self).create(vals)
+
+        self.fetch_invoicing_api(vals)
         
         # Check if this is an import operation
         is_import = self.env.context.get('import_file', False)
         
-        # Only send SMS if this is not an import operation
+        #Only send SMS if this is not an import operation
         if not is_import:
             try:
                 # Get customer name from res.partner
@@ -540,6 +761,8 @@ class Repayment(models.Model):
             else:
                 record.reminder = 'Not Due'
 
+
+
     # Computes the total paid
     @api.depends('deposit', 'repayment')
     def _compute_total_paid(self):
@@ -615,22 +838,36 @@ class Repayment(models.Model):
             except (ValueError, TypeError):
                 continue
 
+            # Special handling for daily frequency - always start from start_date
+            
+
+            # For other frequencies, use the existing logic
+            # Always start with the start_date as the base
+            base_date = record.start_date
+
             # If no payment lines, calculate from start date
             if not record.payment_lines:
-                if freq == 1:
-                    record.repayment_date = record.start_date + timedelta(days=1)
-                elif freq == 7:
-                    record.repayment_date = record.start_date + timedelta(weeks=1)
-                elif freq == 30:
-                    record.repayment_date = record.start_date + relativedelta(months=1)
-                else:
+                if freq == 1:  # Daily frequency
                     record.repayment_date = record.start_date
+                if freq == 7:
+                    record.repayment_date = base_date + timedelta(weeks=1)
+                elif freq == 30:
+                    record.repayment_date = base_date + relativedelta(months=1)
+                else:
+                    record.repayment_date = base_date
                 continue
 
             # Get payments sorted by date
             payment_lines_sorted = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)
             if not payment_lines_sorted:
-                record.repayment_date = record.start_date
+                if freq == 1:
+                    record.repayment_date = base_date + timedelta(days=1)
+                if freq == 7:
+                    record.repayment_date = base_date + timedelta(weeks=1)
+                elif freq == 30:
+                    record.repayment_date = base_date + relativedelta(months=1)
+                else:
+                    record.repayment_date = base_date
                 continue
 
             current_payment = payment_lines_sorted[0]
@@ -642,7 +879,7 @@ class Repayment(models.Model):
                 full_payments = int(current_payment_amount // record.expected_to_pay)
                 if freq == 1:
                     record.repayment_date = current_payment_date + timedelta(days=full_payments)
-                elif freq == 7:
+                if freq == 7:
                     record.repayment_date = current_payment_date + timedelta(weeks=full_payments)
                 elif freq == 30:
                     record.repayment_date = current_payment_date + relativedelta(months=full_payments)
@@ -730,10 +967,10 @@ class Repayment(models.Model):
                 _logger.info(f"SMS sent successfully to {phone}")
                 
                 # Send notification to user
-                # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-                # notification_type = 'notify_user'
-                # message = {'msg': f'Account creation sms sent to {customer_name}'}
-                # self.env['bus.bus']._sendone(channel, notification_type, message)
+                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                notification_type = 'notify_user'
+                message = {'msg': f'Account creation sms sent to {customer_name}'}
+                self.env['bus.bus']._sendone(channel, notification_type, message)
                 return True
             else:
                 _logger.error(f"Failed to send SMS. Status: {response.status_code}, Response: {response.text}")

@@ -38,6 +38,10 @@ export class HubtelNotificationSystray extends Component {
             if (type === 'notify_user'){
                 this.notification.add(payload.msg, { type: "success", sticky: true });
             }
+
+            if (type === 'invoice'){
+                this.notification.add(payload.msg, { type: "success", sticky: true });
+            }
         }
     }
 

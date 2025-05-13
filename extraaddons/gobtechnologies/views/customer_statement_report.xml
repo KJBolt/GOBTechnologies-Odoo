@@ -20,6 +20,17 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
+    <record id="access_repayment_item_line" model="ir.model.access">
+        <field name="name">Repayment Product Line</field>
+        <field name="model_id" ref="model_repayment_item_line"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+
     <record id="seq_repayment" model="ir.sequence">
         <field name="name">Repayment Reference</field>
         <field name="code">repayment.sequence</field>
@@ -32,7 +43,7 @@
         <field name="name">Repayment Form</field>
         <field name="model">repayment</field>
         <field name="arch" type="xml">
-            <form string="Repayment">
+            <form string="Repayment" >
                 <header>
                     <button 
                         name="action_confirm_payment" id="action_confirm_payment" groups="gobtechnologies.group_repayment_accounts"
@@ -98,19 +109,15 @@
                         </group>
 
                         <group>
-                            <field name="product" readonly="state in ['cancel', 'paid']" />
+                            <field name="total_paid" readonly="1" no-open="1" />
                         </group>
                     </group>
                     <group>
-                        <group>
-                            <field name="total_paid" readonly="1" no-open="1" />
-                        </group>
                         <group>
                             <field name="outstanding_loan" readonly="1" no-open="1" />
                         </group>
                     </group>
 
-                    <!-- Relevant Documents Tab -->
                     <notebook>
                         <!-- Invoice Details -->
                         <page string="Invoice Details" name="invoice_details">
@@ -125,6 +132,20 @@
 
                                 <group string="How do you want this customer to pay for this invoice?">
                                     <field name="invoice_payment_method" />
+                                </group>
+
+                                <group string="Do you want alerts to be sent periodically before the end / due date">
+                                    <field name="is_before" />
+                                </group>
+
+                                <group string="Add products">
+                                    <field name="product_lines" readonly="state in ['cancel', 'paid']">
+                                        <tree editable="bottom">
+                                            <field name="product_id"/>
+                                            <field name="quantity"/>
+                                            <field name="price"/>
+                                        </tree>
+                                    </field>
                                 </group>
 
                                 <group string="Add a Note">
@@ -308,7 +329,7 @@
                 <field name="repayment_frequency"/>
                 <field name="expected_to_pay"/>
                 <field name="duration_left" optional="Hidden"/>
-                <field name="due_date" optional="Hidden"/>
+                <field name="due_date" optional="HitreeRepaymentdden"/>
                 <field name="reminder" widget="badge" decoration-danger="reminder == 'Due'" decoration-success="reminder == 'Not Due'" optional="Hidden"/>
                 <field name="total_paid"/>
                 <field name="outstanding_loan"/>
@@ -319,6 +340,8 @@
                 <field name="paid_to_momo" optional="Hidden"/>
                 <field name="guarantor_name" optional="Hidden"/>
                 <field name="guarantor_contact" optional="Hidden"/>
+                <field name="invoice_no" optional="Hidden"/>
+                <field name="payment_url" optional="Hidden"/>
                 <!-- <button name="action_button_method" string="Send SMS" type="object" class="oe_highlight" invisible="reminder != 'Due'"/> -->
             </tree>
         </field>
