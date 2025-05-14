@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 
 PAYMENT_STATE = [
     ('draft', "Draft"),
-    ('progress', "Payment in Progress"),
+    ('progress', "Progress"),
     ('paid', "Payment Completed"),
     ('termination_warning', "Termination Warning"),
     ('terminated', "Terminated"),
@@ -28,6 +28,7 @@ class RepaymentItemLine(models.Model):
     product_id = fields.Char(string='Product', required=True)
     quantity = fields.Float(string='Quantity', required=True)
     price = fields.Float(string='Price', required=True)
+
 
 
 
@@ -306,11 +307,8 @@ class Repayment(models.Model):
 
     # Invoice field
     branch = fields.Char(string='Branch', required=True)
+    invoice_id = fields.Char(string='Invoice ID', required=False)
     invoice_no = fields.Char(string='Invoice No', required=True)
-    is_before = fields.Selection([
-        ('true', 'True'),
-        ('false', 'False')
-    ], string='Is Before', required=True, default='false')
     invoice_payment_method = fields.Selection([
         # ('pay_at_once', 'Pay At Once'),
         # ('pay_in_installments', 'Pay In Installments'),
@@ -446,8 +444,7 @@ class Repayment(models.Model):
     # Compute the repayment amount
     @api.depends('payment_lines.payment_amount', 'expected_to_pay')
     def _compute_repayment(self):
-        for rec in self:
-            rec.repayment = rec.expected_to_pay  # Initialize with expected amount
+        for rec in self: 
             if rec.payment_lines:
                 rec.repayment = sum(rec.payment_lines.mapped('payment_amount'))
 
@@ -489,28 +486,9 @@ class Repayment(models.Model):
         days = int(vals.get('repayment_frequency', '0'))
         first_payment_amount = vals.get('deposit')
         frequency = repayment_frequency_scrutinized
-        is_before = vals.get('is_before', 'false')
+        t_price = 0
+        t_quantity = 0
         
-
-
-        # raise UserError(
-        #     f"Customer Name: {customer_name}"
-        #     f"Phone No: {phone_no} "
-        #     f"Invoice No: {invoice_no} "
-        #     f"Callback Url: {callback_url} "
-        #     f"Issued By: {issue_by} "
-        #     f"Created By: {created_by} "
-        #     f"Start Date: {start_date} "
-        #     f"End Date: {end_date} "
-        #     f"Has Tax: {has_tax} "
-        #     f"Days: {days} "
-        #     f"First Payment Frequency: {first_payment_amount} "
-        #     f"Frequency: {frequency} "
-        #     f"Is Before: {is_before} "
-        #     f"Item Lines: {item_lines} "
-        # )
-
-
         # Format dates in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)
         def format_date_to_iso8601(date_value):
             """Convert date to ISO 8601 format expected by the API"""
@@ -572,11 +550,21 @@ class Repayment(models.Model):
 
         _logger.info(f"End Date Formatted: {end_date_formatted}, First Payment Due Date Formatted: {first_payment_due_date_formatted}")
 
-        item_lines = self.env['repayment.item.line'].search([])
+        item_lines = self.env['repayment.item.line'].search([('repayment_id', '=', self.id)])        
+        items = []
         for item_line in item_lines:
-            _logger.info(f"Product: {item_line.product_id}, Quantity: {item_line.quantity}, Price: {item_line.price}")
+            items.append({
+                "description": item_line.product_id,
+                "quantity": int(item_line.quantity),
+                "unitPrice": item_line.price
+            })
 
+        if len(items) == 0:
+            raise UserError("Product is empty")
         
+        # convert str to boolean
+        str_value = 'false'
+        is_before = bool(str_value.lower() == 'true')
 
         # Create payload
         payload = {
@@ -593,17 +581,10 @@ class Repayment(models.Model):
             "reminders": [
                 {
                     "days": days,
-                    "isBefore": is_before == 'true'
+                    "isBefore": is_before
                 }
             ],
-            "items": [
-                {
-                    "description": item_line.product_id or 'Auto Debit test',
-                    "quantity": int(item_line.quantity),
-                    "unit_price": item_line.price
-                }
-                for item_line in item_lines
-            ]
+            "items": items
         }
         
         # Send request
@@ -620,11 +601,13 @@ class Repayment(models.Model):
             response = requests.post(url, headers=headers, json=payload)
             _logger.info(f"Response: {response.text}")
             if response.status_code == 200:
-                _logger.info(f"Response Data: {response.json()['data']['invoiceId']}")
+                response_data = response.json()
+                _logger.info(f"Response Data: {response_data}")
+                
                 # Update the record with the invoice ID
                 self.write({
-                    'invoice_id': response.json()['data']['invoiceId'],
-                    'payment_url': response.json()['data']['paymentUrl']
+                    'invoice_id': response_data['data']['invoiceId'],
+                    'payment_url': response_data['data']['paymentUrl']
                 })
 
                 # Send notification to user
@@ -633,10 +616,11 @@ class Repayment(models.Model):
                 message = {'msg': f'Invoice generated successfully'}
                 self.env['bus.bus']._sendone(channel, notification_type, message)
             else:
-                raise UserError(f"Failed to create invoice: {response.text}")
+                _logger.info(f"Failed to create invoice: {response.text}")
+                raise UserError(f"Oops something went wrong while creating the invoice. Please try again later.")
         except Exception as e:
             _logger.error(f"Exception during API call: {str(e)}")
-            raise UserError(f"Failed to create invoice: {str(e)}")
+            raise UserError(f"Oops something went wrong while creating the invoice. Please try again later.")
 
 
 
@@ -650,7 +634,7 @@ class Repayment(models.Model):
         vals['state'] = 'progress'
         res = super(Repayment, self).create(vals)
 
-        self.fetch_invoicing_api(vals)
+        res.fetch_invoicing_api(vals)
         
         # Check if this is an import operation
         is_import = self.env.context.get('import_file', False)
@@ -670,7 +654,7 @@ class Repayment(models.Model):
                     self._send_hubtel_sms(res.phone_no, sms_message, customer_name)
             
             except Exception as e:
-                _logger.error(f"Error sending welcome SMS: {str(e)}")
+                raise UserError(f"Error sending welcome SMS: {str(e)}")
         else:
             _logger.info("Successfully imported record")
 
@@ -835,36 +819,22 @@ class Repayment(models.Model):
             except (ValueError, TypeError):
                 continue
 
-            # Special handling for daily frequency - always start from start_date
-            
-
-            # For other frequencies, use the existing logic
-            # Always start with the start_date as the base
-            base_date = record.start_date
-
             # If no payment lines, calculate from start date
             if not record.payment_lines:
-                if freq == 1:  # Daily frequency
+                if freq == 1:
                     record.repayment_date = record.start_date
-                if freq == 7:
-                    record.repayment_date = base_date + timedelta(weeks=1)
+                elif freq == 7:
+                    record.repayment_date = record.start_date + timedelta(weeks=1)
                 elif freq == 30:
-                    record.repayment_date = base_date + relativedelta(months=1)
+                    record.repayment_date = record.start_date + relativedelta(months=1)
                 else:
-                    record.repayment_date = base_date
+                    record.repayment_date = record.start_date
                 continue
 
             # Get payments sorted by date
-            payment_lines_sorted = record.payment_lines.sorted(lambda p: p.payment_date, reverse=True)
+            payment_lines_sorted = record.payment_lines.filtered(lambda p: p.payment_date).sorted(lambda p: p.payment_date, reverse=True)
             if not payment_lines_sorted:
-                if freq == 1:
-                    record.repayment_date = base_date + timedelta(days=1)
-                if freq == 7:
-                    record.repayment_date = base_date + timedelta(weeks=1)
-                elif freq == 30:
-                    record.repayment_date = base_date + relativedelta(months=1)
-                else:
-                    record.repayment_date = base_date
+                record.repayment_date = record.start_date
                 continue
 
             current_payment = payment_lines_sorted[0]
@@ -876,7 +846,7 @@ class Repayment(models.Model):
                 full_payments = int(current_payment_amount // record.expected_to_pay)
                 if freq == 1:
                     record.repayment_date = current_payment_date + timedelta(days=full_payments)
-                if freq == 7:
+                elif freq == 7:
                     record.repayment_date = current_payment_date + timedelta(weeks=full_payments)
                 elif freq == 30:
                     record.repayment_date = current_payment_date + relativedelta(months=full_payments)
@@ -920,6 +890,8 @@ class Repayment(models.Model):
             else:
                 record.is_payment_missed = record.repayment_date < today
 
+
+
     # Check if payment is missed runs every minute
     def check_payment_missed(self):
         today = fields.Date.today()
@@ -945,7 +917,7 @@ class Repayment(models.Model):
             merchant_account = settings.get('merchant_account')
             
             if not all([client_id, client_secret, merchant_account]):
-                _logger.error("Missing Hubtel credentials")
+                raise UserError("Missing Hubtel credentials")
                 return False
 
             # Construct URL directly
@@ -970,12 +942,25 @@ class Repayment(models.Model):
                 self.env['bus.bus']._sendone(channel, notification_type, message)
                 return True
             else:
-                _logger.error(f"Failed to send SMS. Status: {response.status_code}, Response: {response.text}")
+                _logger.info(f"Failed to send SMS. Status: {response.status_code}, Response: {response.text}")
+
+                # Send toast message to user
+                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                notification_type = 'sms_error'
+                message = {'msg': f'Something went wrong sending sms!'}
+                self.env['bus.bus']._sendone(channel, notification_type, message)
+
                 return False
             
         except Exception as e:
-            _logger.error(f"Failed to send SMS: {str(e)}")
+            # Send toast message to user
+            channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+            notification_type = 'sms_error'
+            message = {'msg': f'Something went wrong sending sms!'}
+            self.env['bus.bus']._sendone(channel, notification_type, message)
+
             return False
+
 
 
     # Send repayment reminders
@@ -1309,7 +1294,7 @@ class Repayment(models.Model):
             current_period_end = record.repayment_date
             
             current_period_payments = record.payment_lines.filtered(
-                lambda p: current_period_start <= p.payment_date <= current_period_end
+                lambda p: p.payment_date and current_period_start <= p.payment_date <= current_period_end
             )
             total_paid_in_period = sum(current_period_payments.mapped('payment_amount'))
 
