@@ -203,9 +203,6 @@ class RepaymentPaymentLine(models.Model):
 
 
 
-
-
-
 class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
