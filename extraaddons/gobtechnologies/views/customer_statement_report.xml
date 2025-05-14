@@ -134,10 +134,6 @@
                                     <field name="invoice_payment_method" />
                                 </group>
 
-                                <group string="Do you want alerts to be sent periodically before the end / due date">
-                                    <field name="is_before" />
-                                </group>
-
                                 <group string="Add products">
                                     <field name="product_lines" readonly="state in ['cancel', 'paid']">
                                         <tree editable="bottom">
@@ -154,8 +150,8 @@
                             </sheet>
                         </page>
 
-                        <!-- Other Details Tab -->
-                        <page string="Other Details" name="Other Details">
+                        <!-- Repament Details Tab -->
+                        <page string="Repayment Details" name="Other Details">
                             <sheet>
                                 <group name="others_header">
                                     <group name="others_details">
@@ -198,7 +194,53 @@
                                 </group>
                             </sheet>
                         </page>
-                        
+
+                        <!-- Payment Tab -->
+                        <page string="Payments" name="Repayment History" groups="gobtechnologies.group_repayment_accounts">
+                            <field name="payment_lines" readonly="state in ['paid']">
+                                <tree editable="bottom">
+                                    <field name="repayment_id" invisible="1" force_save="1" column_invisible="True"/>
+                                    <field name="payment_date"/>
+                                    <field name="payment_mode"/>
+                                    <field name="payment_amount" decoration-danger="is_payment_insufficient"/>
+                                    <field name="is_payment_insufficient" invisible="1" column_invisible="True"/>
+                                </tree>
+                            </field>
+                            <!-- Add totals section -->
+                            <group class="oe_subtotal_footer" name="payment_totals">
+                                <field name="currency_id" invisible="1"/>
+                                <!-- Repayment Total -->
+                                <label for="repayment" string="Repayment Total"/>
+                                <field name="repayment" nolabel="1" readonly="1"/>
+
+                                <!-- Deposit Total -->
+                                <label for="deposit"/>
+                                <field name="deposit" nolabel="1" readonly="1"/>
+
+                                <!-- Total Paid -->
+                                <div class="oe_subtotal_footer_separator oe_inline o_td_label">
+                                    <label for="total_paid" class="fw-bolder"/>
+                                </div>
+                                <field name="total_paid" nolabel="1" class="oe_subtotal_footer_separator" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                            </group>
+                        </page>
+
+                        <!-- Payment Compliance Overview Tab -->
+                        <page string="Payment Compliance Overview" name="payment_compliance">
+                            <field name="payment_lines" readonly="1" domain="[('is_payment_insufficient', '=', True)]">
+                                <tree default_order="create_date desc">
+                                    <field name="payment_date"/>
+                                    <field name="expected_amount"/>
+                                    <field name="payment_amount" string="Amount Paid"/>
+                                    <field name="payment_status" 
+                                        decoration-danger="payment_status == 'Underpaid'"
+                                        decoration-success="payment_status == 'Fully Paid'"
+                                        decoration-info="payment_status == 'Overpaid'"
+                                    />
+                                </tree>
+                            </field>
+                        </page>
+
                         <!-- Relevant Documents Tab -->
                         <page string="Relevant Documents" name="payment_compliance">
                             <sheet>
@@ -241,51 +283,6 @@
                                     </group>
                                 </group>
                             </sheet>
-                        </page>
-
-                        <!-- Payment Tab -->
-                        <page string="Repayment History" name="Repayment History" groups="gobtechnologies.group_repayment_accounts">
-                            <field name="payment_lines" readonly="state in ['paid']">
-                                <tree editable="bottom">
-                                    <field name="repayment_id" invisible="1" force_save="1" column_invisible="True"/>
-                                    <field name="payment_date"/>
-                                    <field name="payment_mode"/>
-                                    <field name="payment_amount" decoration-danger="is_payment_insufficient"/>
-                                    <field name="is_payment_insufficient" invisible="1" column_invisible="True"/>
-                                </tree>
-                            </field>
-                            <!-- Add totals section -->
-                            <group class="oe_subtotal_footer" name="payment_totals">
-                                <field name="currency_id" invisible="1"/>
-                                <!-- Repayment Total -->
-                                <label for="repayment" string="Repayment Total"/>
-                                <field name="repayment" nolabel="1" readonly="1"/>
-
-                                <!-- Deposit Total -->
-                                <label for="deposit"/>
-                                <field name="deposit" nolabel="1" readonly="1"/>
-
-                                <!-- Total Paid -->
-                                <div class="oe_subtotal_footer_separator oe_inline o_td_label">
-                                    <label for="total_paid" class="fw-bolder"/>
-                                </div>
-                                <field name="total_paid" nolabel="1" class="oe_subtotal_footer_separator" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
-                            </group>
-                        </page>
-
-                        <page string="Payment Compliance Overview" name="payment_compliance">
-                            <field name="payment_lines" readonly="1" domain="[('is_payment_insufficient', '=', True)]">
-                                <tree default_order="create_date desc">
-                                    <field name="payment_date"/>
-                                    <field name="expected_amount"/>
-                                    <field name="payment_amount" string="Amount Paid"/>
-                                    <field name="payment_status" 
-                                        decoration-danger="payment_status == 'Underpaid'"
-                                        decoration-success="payment_status == 'Fully Paid'"
-                                        decoration-info="payment_status == 'Overpaid'"
-                                    />
-                                </tree>
-                            </field>
                         </page>
                     </notebook>
                 </sheet>
@@ -333,6 +330,7 @@
                 <field name="reminder" widget="badge" decoration-danger="reminder == 'Due'" decoration-success="reminder == 'Not Due'" optional="Hidden"/>
                 <field name="total_paid"/>
                 <field name="outstanding_loan"/>
+                <field name="state" widget='badge' decoration-warning="state == 'progress'" decoration-success="state == 'paid'"/>
                 <field name="phone_no" optional="Hidden"/>
                 <field name="penalty" optional="Hidden"/>
                 <field name="discount" optional="Hidden"/>
@@ -340,10 +338,26 @@
                 <field name="paid_to_momo" optional="Hidden"/>
                 <field name="guarantor_name" optional="Hidden"/>
                 <field name="guarantor_contact" optional="Hidden"/>
-                <field name="invoice_no" optional="Hidden"/>
+                <field name="invoice_id" optional="Hidden"/>
                 <field name="payment_url" optional="Hidden"/>
                 <!-- <button name="action_button_method" string="Send SMS" type="object" class="oe_highlight" invisible="reminder != 'Due'"/> -->
             </tree>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_repayment_search" model="ir.ui.view">
+        <field name="name">Repayment Search</field>
+        <field name="model">repayment</field>
+        <field name="arch" type="xml">
+            <search string="Repayment">
+                <field name="customer_name"/>
+                <field name="phone_no"/>
+                <field name="unique_id"/>
+
+                <filter name="paid" string="Paid" domain="[('state', '=', 'paid')]"/>
+                <filter name="progress" string="In Progress" domain="[('state', '=', 'progress')]"/>
+            </search>
         </field>
     </record>
 

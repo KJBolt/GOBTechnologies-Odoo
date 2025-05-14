@@ -24,7 +24,7 @@ export class HubtelNotificationSystray extends Component {
 
         // Initial fetch
         onWillStart(async () => {
-            await this._initialFetchNotificationCount();
+            // await this._initialFetchNotificationCount();
         });
     }
 
@@ -40,54 +40,58 @@ export class HubtelNotificationSystray extends Component {
             }
 
             if (type === 'invoice'){
-                this.notification.add(payload.msg, { type: "success", sticky: true });
+                this.notification.add(payload.msg, { type: "success", sticky: false });
+            }
+
+            if (type === 'sms_error'){
+                this.notification.add(payload.msg, { type: "danger", sticky: false });
             }
         }
     }
 
-    async _initialFetchNotificationCount() {
-        try {
-            const count = await this.orm.call("hubtel.webhook", "search_count", [[["is_read", "=", false]]]);
-            this.state.count = count;
-        } catch (error) {
-            console.error("Error fetching notification count:", error);
-            this.notification.add(
-                "Failed to fetch notifications",
-                {
-                    type: "danger",
-                }
-            );
-        }
-    }
+    // async _initialFetchNotificationCount() {
+    //     try {
+    //         const count = await this.orm.call("payment.notifications", "search_count", [[["is_read", "=", false]]]);
+    //         this.state.count = count;
+    //     } catch (error) {
+    //         console.error("Error fetching notification count:", error);
+    //         this.notification.add(
+    //             "Failed to fetch notifications",
+    //             {
+    //                 type: "danger",
+    //             }
+    //         );
+    //     }
+    // }
 
     // When the bell icon is clicked clear notifications
-    async clearNotifications() {
-        try {
-            await this.orm.call("hubtel.webhook", "mark_as_read", [[]], {});
-            this.state.count = 0;
-            if (this.action) {
-                this.action.doAction({
-                    type: "ir.actions.act_window",
-                    name: "Notifications from Hubtel",
-                    res_model: "hubtel.webhook",
-                    view_mode: "tree,form",
-                    views: [[false, "list"], [false, "form"]],  // Ensure views are defined
-                    target: "current",
-                    context: {}, 
-                });
-            } else {
-                console.error("Action service is not available.");
-            }
-        } catch (error) {
-            console.error("Error clearing notifications:", error);
-            this.notification.add(
-                "Failed to clear notifications",
-                {
-                    type: "danger",
-                }
-            );
-        }
-    }
+    // async clearNotifications() {
+    //     try {
+    //         await this.orm.call("hubtel.webhook", "mark_as_read", [[]], {});
+    //         this.state.count = 0;
+    //         if (this.action) {
+    //             this.action.doAction({
+    //                 type: "ir.actions.act_window",
+    //                 name: "Notifications from Hubtel",
+    //                 res_model: "hubtel.webhook",
+    //                 view_mode: "tree,form",
+    //                 views: [[false, "list"], [false, "form"]],  // Ensure views are defined
+    //                 target: "current",
+    //                 context: {}, 
+    //             });
+    //         } else {
+    //             console.error("Action service is not available.");
+    //         }
+    //     } catch (error) {
+    //         console.error("Error clearing notifications:", error);
+    //         this.notification.add(
+    //             "Failed to clear notifications",
+    //             {
+    //                 type: "danger",
+    //             }
+    //         );
+    //     }
+    // }
 }
 
 HubtelNotificationSystray.template = "gobtechnologies.HubtelNotificationSystray";
