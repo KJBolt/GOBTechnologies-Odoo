@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 PAYMENT_STATE = [
     ('draft', "Draft"),
     ('progress', "Progress"),
-    ('paid', "Payment Completed"),
+    ('paid', "Paid"),
     ('termination_warning', "Termination Warning"),
     ('terminated', "Terminated"),
 ]

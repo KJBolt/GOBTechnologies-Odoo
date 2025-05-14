@@ -5,4 +5,14 @@
         <field name="active">False</field>
     </record>
 
+    <!-- Show Contacts Menu Item -->
+    <record id="contacts.menu_contacts" model="ir.ui.menu">
+        <field name="active">True</field>
+    </record>
+
+    <!-- Show Inventory Menu Item -->
+    <!-- <record id="stock.menu_stock_root" model="ir.ui.menu">
+        <field name="active">False</field>
+    </record> -->
+
 </odoo>
