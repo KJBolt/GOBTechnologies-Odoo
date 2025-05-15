@@ -18,7 +18,7 @@
         'views/modify_menuitems.xml',
         'views/customer_statement_report.xml',
         'views/login_template.xml',
-        # 'views/hubtel_webhook.xml',
+        'views/hubtel_webhook.xml',
         'views/res_config_settings_views.xml',
         'views/payment_notifications.xml',
         'data/ir_cron.xml',

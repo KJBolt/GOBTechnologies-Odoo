@@ -51,8 +51,8 @@ class HubtelWebhook(models.Model):
     def _compute_phone_no(self):
         _logger.info("Computing First Client Reference")
         for record in self:
-            if record.client_reference:
-                parts = record.client_reference.split("_")  # Split by "_"
+            if record.phone_no:
+                parts = record.phone_no.split("_")  # Split by "_"
                 if len(parts) >= 2:  # Ensure the split has enough parts
                     record.phone_no = parts[1] # Extract phone number
 
@@ -65,14 +65,14 @@ class HubtelWebhook(models.Model):
 
 
     def _process_customer_name(self, record):
-            search_repayment = self.env['repayment'].search([('client_reference', '=', self.client_reference)], limit=1)
+            search_repayment = self.env['repayment'].search([('phone_no', '=', record.phone_no)], limit=1)
             if search_repayment:
                 record.customer_name = search_repayment.customer_name.name
 
 
     def _process_payment(self, record):
         _logger.info("Computing Payment")
-        repayment = self.env['repayment'].search([('client_reference', '=', self.client_reference)], limit=1)
+        repayment = self.env['repayment'].search([('phone_no', '=', record.phone_no)], limit=1)
         if repayment:
             repayment.payment_lines.create({
                 'payment_date': record.payment_date,
@@ -81,7 +81,7 @@ class HubtelWebhook(models.Model):
                 'repayment_id': repayment.id
             })
         else:
-            _logger.info("Client Reference not found")
+            _logger.info("Phone Number not found")
         
         
     

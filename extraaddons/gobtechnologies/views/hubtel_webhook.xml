@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
     <record id="access_hubtel_webhook" model="ir.model.access">
-        <field name="name">Notifications</field>
+        <field name="name">Ussd Payments</field>
         <field name="model_id" ref="model_hubtel_webhook"/>
         <field name="group_id" ref="base.group_user"/>
         <field name="perm_read" eval="True"/>
@@ -11,10 +11,10 @@
     </record>
 
     <record id="view_hubtel_webhook_tree" model="ir.ui.view">
-        <field name="name">Notifications from Hubtel</field>
+        <field name="name">Ussd Payments</field>
         <field name="model">hubtel.webhook</field>
         <field name="arch" type="xml">
-            <tree string="Hubtel Webhook" default_order="create_date desc">
+            <tree string="Hubtel Webhook">
                 <field name="customer_name"/>
                 <field name="phone_no" column_invisible="True"/>
                 <field name="client_reference"/>
@@ -34,7 +34,7 @@
     
 
     <record id="view_hubtel_webhook_form" model="ir.ui.view">
-        <field name="name">Notifications from Hubtel</field>
+        <field name="name">Ussd Payments</field>
         <field name="model">hubtel.webhook</field>
         <field name="arch" type="xml">
             <form string="Hubtel Webhook">
@@ -82,14 +82,14 @@
     </record>
 
     <record id="action_hubtel_webhook" model="ir.actions.act_window">
-        <field name="name">Notifications from Hubtel</field>
+        <field name="name">Ussd Payments</field>
         <field name="res_model">hubtel.webhook</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <menuitem 
         id="menu_hubtel_webhook" 
-        name="Notifications"
+        name="Ussd Payments"
         parent="menu_repayment_root"
         action="server_action_hubtel_webhook"
     />

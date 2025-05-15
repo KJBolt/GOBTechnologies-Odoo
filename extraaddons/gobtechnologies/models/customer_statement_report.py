@@ -19,15 +19,28 @@ PAYMENT_STATE = [
     ('terminated', "Terminated"),
 ]
 
+from odoo import models, fields, api
 
 class RepaymentItemLine(models.Model):
     _name = 'repayment.item.line'
     _description = 'Repayment Item Line'
 
     repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', required=False)
-    product_id = fields.Char(string='Product', required=True)
-    quantity = fields.Float(string='Quantity', required=True)
-    price = fields.Float(string='Price', required=True)
+    product_id = fields.Many2one('product.product', string='Product', required=True)
+    quantity = fields.Float(string='Quantity', required=True, default=1)
+    price = fields.Float(string='Price', required=True, readonly=True)
+
+    @api.onchange('product_id')
+    def _onchange_product_id(self):
+        """Fetch the price of the selected product."""
+        if self.product_id:
+            self.price = self.product_id.lst_price * self.quantity
+
+    @api.onchange('quantity')
+    def _onchange_quantity(self):
+        """Update the price based on the quantity."""
+        if self.product_id:
+            self.price = self.product_id.lst_price * self.quantity
 
 
 
@@ -227,6 +240,7 @@ class Repayment(models.Model):
         'repayment_id',  # Field in the related model pointing back to this model
         string='Products',
     )
+
 
     plan = fields.Selection([
         ('30 days', '30 days'),
