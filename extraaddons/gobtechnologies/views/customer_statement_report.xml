@@ -136,7 +136,8 @@
 
                                 <group string="Add products">
                                     <field name="product_lines" readonly="state in ['cancel', 'paid']">
-                                        <tree editable="bottom">
+                                        <tree>
+                                            <field name="repayment_id" invisible="1" column_invisible="1"/>
                                             <field name="product_id"/>
                                             <field name="quantity"/>
                                             <field name="price"/>
@@ -303,6 +304,21 @@
                     <field name="payment_amount"/>
                     <field name="repayment_id" invisible="1" optional="hidden" readonly="1" no-open="1" column_invisible="True"/>
                     <field name="is_payment_insufficient" invisible="1" optional="hidden" readonly="1" no-open="1" column_invisible="True"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_repayment_item_line_form" model="ir.ui.view">
+        <field name="name">repayment.item.line.form</field>
+        <field name="model">repayment.item.line</field>
+        <field name="arch" type="xml">
+            <form string="Create Products">
+                <group>
+                    <field name="repayment_id" invisible="1"/>
+                    <field name="product_id"/>
+                    <field name="quantity"/>
+                    <field name="price"/>
                 </group>
             </form>
         </field>

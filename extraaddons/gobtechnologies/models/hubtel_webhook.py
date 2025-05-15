@@ -49,12 +49,20 @@ class HubtelWebhook(models.Model):
 
     @api.depends('transaction_id')
     def _compute_phone_no(self):
-        _logger.info("Computing First Client Reference")
+        _logger.info("Computing Phone No")
         for record in self:
-            if record.phone_no:
-                parts = record.phone_no.split("_")  # Split by "_"
+            if record.client_reference:
+                parts = record.client_reference.split("_")  # Split by "_"
                 if len(parts) >= 2:  # Ensure the split has enough parts
-                    record.phone_no = parts[1] # Extract phone number
+                    phone_no = parts[1] # Extract phone number
+
+                    # If phone_no starts with '233', replace with '0'
+                    if phone_no.startswith('233'):
+                        phone_no = '0' + phone_no[3:]
+
+                    record.phone_no = phone_no
+
+                    _logger.info(f"Extracted Phone No: {record.phone_no}")
 
                     self._process_customer_name(record)
                     self._process_payment(record)

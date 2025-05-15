@@ -20,6 +20,11 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='gobtechnologies.hubtel_merchant_account'
     )
 
+    webhook_url = fields.Char(
+        string='Webhook URL',
+        config_parameter='gobtechnologies.webhook_url'
+    )
+
 
     @api.model
     def get_values(self):
@@ -30,7 +35,8 @@ class ResConfigSettings(models.TransientModel):
         res.update({
             'hubtel_client_id': decrypt_text(params.get_param('gobtechnologies.hubtel_client_id', '')),
             'hubtel_client_secret': decrypt_text(params.get_param('gobtechnologies.hubtel_client_secret', '')),
-            'hubtel_merchant_account': decrypt_text(params.get_param('gobtechnologies.hubtel_merchant_account', ''))
+            'hubtel_merchant_account': decrypt_text(params.get_param('gobtechnologies.hubtel_merchant_account', '')),
+            'webhook_url': decrypt_text(params.get_param('gobtechnologies.webhook_url', ''))
         })
         return res
 
@@ -50,6 +56,10 @@ class ResConfigSettings(models.TransientModel):
             'gobtechnologies.hubtel_merchant_account', 
             encrypt_text(self.hubtel_merchant_account or '')
         )
+        self.env['ir.config_parameter'].sudo().set_param(
+            'gobtechnologies.webhook_url', 
+            encrypt_text(self.webhook_url or '')
+        )
 
     @api.model
     def get_hubtel_credentials(self):
@@ -58,6 +68,7 @@ class ResConfigSettings(models.TransientModel):
         return {
             'client_id': decrypt_text(params.get_param('gobtechnologies.hubtel_client_id', '')),
             'client_secret': decrypt_text(params.get_param('gobtechnologies.hubtel_client_secret', '')),
-            'merchant_account': decrypt_text(params.get_param('gobtechnologies.hubtel_merchant_account', ''))
+            'merchant_account': decrypt_text(params.get_param('gobtechnologies.hubtel_merchant_account', '')),
+            'webhook_url': decrypt_text(params.get_param('gobtechnologies.webhook_url', ''))
         }
 

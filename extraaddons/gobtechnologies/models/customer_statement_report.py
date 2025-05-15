@@ -27,8 +27,9 @@ class RepaymentItemLine(models.Model):
 
     repayment_id = fields.Many2one('repayment', string='Repayment', ondelete='cascade', required=False)
     product_id = fields.Many2one('product.product', string='Product', required=True)
-    quantity = fields.Float(string='Quantity', required=True, default=1)
-    price = fields.Float(string='Price', required=True, readonly=True)
+    quantity = fields.Float(string='Quantity', default=1, required=True)
+    price = fields.Float(string='Price', required=True)
+
 
     @api.onchange('product_id')
     def _onchange_product_id(self):
@@ -42,6 +43,15 @@ class RepaymentItemLine(models.Model):
         if self.product_id:
             self.price = self.product_id.lst_price * self.quantity
 
+    @api.onchange('price')
+    def _onchange_price(self):
+        _logger.info(f"Price: {self.price}")
+        _logger.info(f"Repayment price: {self.repayment_id.selling_price}")
+
+        if self.repayment_id.selling_price != 0 and self.price != 0:
+            if self.price > self.repayment_id.selling_price:
+                raise UserError("Price of the product(s) cannot exceed the selling price")
+            
 
 
 
@@ -250,7 +260,7 @@ class Repayment(models.Model):
         ('cash', 'Cash')
     ], string='Plan', required=True)
     start_date = fields.Date(string='Start Date', required=True)
-    selling_price= fields.Float(string='Selling Price', required=True)
+    selling_price = fields.Float(string='Selling Price', required=True)
     deposit = fields.Float(string='Deposit', required=True)
     repayment = fields.Float(string='Repayment Amount', compute='_compute_repayment', readonly=True, store=True)
     expected_to_pay = fields.Float(string='Expected to Pay', required=True)
@@ -491,17 +501,31 @@ class Repayment(models.Model):
         # Get other input values
         phone_no = vals.get('phone_no')
         invoice_no = vals.get('invoice_no')
-        callback_url = 'http://localhost:8069/web/hook/1647b136-1c9c-4d99-8b2f-c0babb384e75'
+
+        # Get Hubtel credentials
+        settings = self.env['res.config.settings'].get_hubtel_credentials()
+        callback_url = settings.get('webhook_url')
+
         issue_by = vals.get('branch')
         created_by = vals.get("branch")
         start_date = vals.get("start_date")
         end_date = vals.get("end_date")
+        selling_price = vals.get("selling_price")
         has_tax = ''
         days = int(vals.get('repayment_frequency', '0'))
         first_payment_amount = vals.get('deposit')
         frequency = repayment_frequency_scrutinized
-        t_price = 0
-        t_quantity = 0
+
+        # Selling price validation
+        if selling_price <= 0:
+            raise UserError("Selling price cannot be 0")
+
+        # Get price from repayment.item.line
+        item_lines = self.env['repayment.item.line'].search([('repayment_id', '=', self.id)])
+        for item_line in item_lines:
+            if item_line.price > selling_price:
+                raise UserError("Price of the product(s) cannot exceed the selling price")
+            
         
         # Format dates in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)
         def format_date_to_iso8601(date_value):
@@ -568,11 +592,12 @@ class Repayment(models.Model):
         items = []
         for item_line in item_lines:
             items.append({
-                "description": item_line.product_id,
+                "description": item_line.product_id.name,
                 "quantity": int(item_line.quantity),
                 "unitPrice": item_line.price
             })
 
+        _logger.info(f"Items: {items}")
         if len(items) == 0:
             raise UserError("Product is empty")
         

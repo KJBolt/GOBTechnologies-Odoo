@@ -34,6 +34,12 @@
                                             <field name="hubtel_merchant_account" password="true"/>
                                         </div>
                                     </div>
+                                    <div class="row mt16">
+                                        <label class="col-lg-4 o_light_label" for="webhook_url">Invoice Payment Webhook</label>
+                                        <div class="col-lg-8">
+                                            <field name="webhook_url" password="true"/>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
