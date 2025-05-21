@@ -46,8 +46,9 @@
 
     <menuitem 
         id="menu_payment_notifications" 
-        name="Invoice Payments"
+        name="Auto Debit Payments"
         parent="menu_repayment_root"
         action="server_action_payment_notifications"
+        groups="gobtechnologies.group_repayment_accounts"
     />
 </odoo>

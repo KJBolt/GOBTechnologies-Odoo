@@ -9,6 +9,7 @@ import base64
 import magic
 import datetime
 
+
 _logger = logging.getLogger(__name__)
 
 PAYMENT_STATE = [
@@ -19,7 +20,6 @@ PAYMENT_STATE = [
     ('terminated', "Terminated"),
 ]
 
-from odoo import models, fields, api
 
 class RepaymentItemLine(models.Model):
     _name = 'repayment.item.line'
@@ -42,15 +42,17 @@ class RepaymentItemLine(models.Model):
         """Update the price based on the quantity."""
         if self.product_id:
             self.price = self.product_id.lst_price * self.quantity
+            # if self.price > self.repayment_id.selling_price:
+            #     raise UserError("Price of the product(s) cannot exceed the selling price")
 
-    @api.onchange('price')
-    def _onchange_price(self):
-        _logger.info(f"Price: {self.price}")
-        _logger.info(f"Repayment price: {self.repayment_id.selling_price}")
+    # @api.onchange('price')
+    # def _onchange_price(self):
+    #     _logger.info(f"Price: {self.price}")
+    #     _logger.info(f"Repayment price: {self.repayment_id.selling_price}")
 
-        if self.repayment_id.selling_price != 0 and self.price != 0:
-            if self.price > self.repayment_id.selling_price:
-                raise UserError("Price of the product(s) cannot exceed the selling price")
+    #     if self.repayment_id.selling_price != 0 and self.price != 0:
+    #         if self.price > self.repayment_id.selling_price:
+    #             raise UserError("Price of the product(s) cannot exceed the selling price")
             
 
 
@@ -321,23 +323,25 @@ class Repayment(models.Model):
     
 
     # Relevant documents fields
-    customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
-    customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
-    guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=False)
-    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
-    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=False)
-    mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=False)
-    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=False)
+    customer_ghana_card_front = fields.Binary(string='Customer Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
+    customer_ghana_card_back = fields.Binary(string='Customer Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    guarantor_ghana_card_front = fields.Binary(string='Guarantor Ghana Card Front', attachment=True, help="Upload Front Image", required=True)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
+    mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=True)
+    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=True)
 
     # Invoice field
-    branch = fields.Char(string='Branch', required=True)
+    branch = fields.Selection([
+        ('gob_technologies', 'GOB Technologies'),
+    ])
     invoice_id = fields.Char(string='Invoice ID', required=False)
-    invoice_no = fields.Char(string='Invoice No', required=True)
+    invoice_no = fields.Char(string='Invoice No', readonly=True, required=False, default=lambda self: self.env['ir.sequence'].next_by_code('invoice.ref'))
     invoice_payment_method = fields.Selection([
         # ('pay_at_once', 'Pay At Once'),
         # ('pay_in_installments', 'Pay In Installments'),
         ('auto_debit', 'Pay In Installments with Auto Debit')
-    ], string='Payment Method', required=True)
+    ], string='Payment Method', required=False)
     note = fields.Text(string='Note', required=False)
     payment_url = fields.Char(string="Payment Url", required=False)
 
@@ -521,10 +525,10 @@ class Repayment(models.Model):
             raise UserError("Selling price cannot be 0")
 
         # Get price from repayment.item.line
-        item_lines = self.env['repayment.item.line'].search([('repayment_id', '=', self.id)])
-        for item_line in item_lines:
-            if item_line.price > selling_price:
-                raise UserError("Price of the product(s) cannot exceed the selling price")
+        # item_lines = self.env['repayment.item.line'].search([('repayment_id', '=', self.id)])
+        # for item_line in item_lines:
+        #     if item_line.price > selling_price:
+        #         raise UserError("Price of the product(s) cannot exceed the selling price")
             
         
         # Format dates in ISO 8601 format (YYYY-MM-DDTHH:MM:SS.sssZ)
@@ -597,7 +601,13 @@ class Repayment(models.Model):
                 "unitPrice": item_line.price
             })
 
-        _logger.info(f"Items: {items}")
+            # If total items price greater than selling price throw error
+            total_price = sum(item.price for item in self.product_lines)
+            if total_price > selling_price:
+                raise UserError("The total price of items should match the selling price specified ")
+
+        
+
         if len(items) == 0:
             raise UserError("Product is empty")
         
@@ -659,7 +669,49 @@ class Repayment(models.Model):
                 raise UserError(f"Oops something went wrong while creating the invoice. Please try again later.")
         except Exception as e:
             _logger.error(f"Exception during API call: {str(e)}")
-            raise UserError(f"Oops something went wrong while creating the invoice. Please try again later.")
+            raise UserError(f"Oops something went wrong while creating the invoice. Please check the network and try again.")
+
+
+
+    # Prepare the values for fetch invoicing api method                                                 
+    def _prepare_invoice_vals(self):
+        """Prepare a dictionary of values from the record for invoicing API."""
+        return {
+            'customer_name': self.customer_name.id,
+            'repayment_frequency': self.repayment_frequency,
+            'phone_no': self.phone_no,
+            'invoice_no': self.invoice_no,
+            'branch': self.branch,
+            'start_date': self.start_date,
+            'end_date': self.end_date,
+            'selling_price': self.selling_price,
+            'deposit': self.deposit,
+        }
+
+
+
+    # Create invoice for customer
+    def action_create_invoice(self):
+        # Check if the invoice already exists
+        if self.invoice_id:
+            raise UserError("Invoice already created for this repayment.")
+
+        # Validate required fields
+        if not self.invoice_no or not self.branch or not self.invoice_payment_method or not self.product_lines:
+            raise UserError("Please fill in the Invoice Details before generating an invoice.")
+
+        # Call the API to create the invoice
+        try:
+            self.fetch_invoicing_api(self._prepare_invoice_vals())
+
+            # Set state to progress
+            self.state = 'progress'
+            
+        except Exception as e:
+            raise UserError(f"Error creating invoice: {str(e)}")
+
+        return True
+
 
 
 
@@ -670,15 +722,15 @@ class Repayment(models.Model):
         if vals.get('unique_id', _('New')) == _('New'):
             vals['unique_id'] = self.env['ir.sequence'].next_by_code('repayment.sequence') or _('New')
         
-        vals['state'] = 'progress'
+        # vals['state'] = 'progress'
         res = super(Repayment, self).create(vals)
 
-        res.fetch_invoicing_api(vals)
+        # res.fetch_invoicing_api(vals)
         
         # Check if this is an import operation
         is_import = self.env.context.get('import_file', False)
         
-        #Only send SMS if this is not an import operation
+        # Only send SMS if this is not an import operation
         if not is_import:
             try:
                 # Get customer name from res.partner
@@ -707,7 +759,7 @@ class Repayment(models.Model):
                 vals['state'] = 'paid'
             else:
                 vals['state'] = 'progress'
-        
+
         return res
 
 
@@ -1195,7 +1247,7 @@ class Repayment(models.Model):
                         f"Dear {repayment.customer_name.name}, "
                         f"this is a reminder that your payment of GHS {repayment.expected_to_pay} "
                         f"is due tomorrow {tomorrow.strftime('%d-%m-%Y')}. "
-                        f"Kindly dial *713*7678# to pay now to avoid any penalties."
+                        f"Kindly dial *713*7678# to pay now to avoid any penalties. "
                         f"Thank you for choosing GOB Technologies."
                     )
                     
@@ -1223,8 +1275,8 @@ class Repayment(models.Model):
                         payment_status = "not made" if not payments else "insufficient"
                         overdue_message = (
                             f"Dear {repayment.customer_name.name}, "
-                            f"your payment of GHS {repayment.expected_to_pay} was due yesterday"
-                            f"Kindly dial *713*7678# to pay now to avoid any penalties."
+                            f"your payment of GHS {repayment.expected_to_pay} was due yesterday. "
+                            f"Kindly dial *713*7678# to pay now to avoid any penalties. "
                             f"Thank you for choosing GOB Technologies."
                         )
                         
