@@ -20,12 +20,6 @@ class InvoiceWebhook(models.Model):
     response_code = fields.Char(string="Response Code", required=False)
     payment_date = fields.Date(string="Payment Date", required=False)
 
-    # @api.model
-    # def create(self, vals):
-    #     record = super(InvoiceWebhook, self).create(vals)
-    #     if 'payee_phone_no' in vals:
-    #         record.process_payment()
-    #     return record
 
     @api.depends('invoice_id')
     def _compute_phone_no(self):
@@ -46,20 +40,22 @@ class InvoiceWebhook(models.Model):
 
 
     def process_payment(self):
-        _logger.info(f"Computing Payment")
         for record in self:
-            repayment = self.env['repayment'].search([('phone_no', '=', record.payee_phone_no)], limit=1)
-            if not repayment:
-                raise UserError("No customer found with the provided phone number")
-            existing_line = self.env['repayment.payment.line'].search([
-                ('repayment_id', '=', repayment.id),
-                ('payment_date', '=', record.payment_date)
-            ], limit=1)
-            if existing_line:
+            _logger.info(f"Computing Process Payment")
+            _logger.info(f"Record Phone No: {record.payee_phone_no}, Record Invoice Id: {record.invoice_id}")
+            repayment = self.env['repayment'].search([
+                ('phone_no', '=', record.payee_phone_no),
+                ('invoice_id', '=', record.invoice_id)
+                ], limit=1)
+
+            if repayment:
                 repayment.payment_lines.create({
                     'payment_date': record.payment_date,
                     'payment_mode': 'momo',
                     'payment_amount': record.amount_paid,
                     'repayment_id': repayment.id
                 })
-                _logger.info(f"Payment line created for {record.payment_date}")
+            else:
+                _logger.info(f"Repayment Not Found")
+            
+            
