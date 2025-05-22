@@ -129,7 +129,7 @@ class RepaymentPaymentLine(models.Model):
             payment_amount = vals.get('payment_amount', 0)
             
             # Prepare SMS message
-            sms_message = f"Dear {customer_name}, thank you for your payment of {payment_amount} GHC. Your outstanding balance is {outstanding_balance} GHC."
+            sms_message = f"Dear {customer_name}, thank you for your payment of GHS {payment_amount}. Your outstanding balance is GHS {outstanding_balance}."
             
             # Send SMS if phone number exists
             if repayment.phone_no:
@@ -741,7 +741,7 @@ class Repayment(models.Model):
                 sms_message = f"Dear {customer_name}, your account has been successfully created with GOB Technologies."
 
                 # Send SMS
-                if res.phone_no:
+                if res.phone_no and res.state == 'draft':
                     self._send_hubtel_sms(res.phone_no, sms_message, customer_name)
             
             except Exception as e:
