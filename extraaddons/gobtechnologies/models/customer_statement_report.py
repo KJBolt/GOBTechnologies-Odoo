@@ -94,7 +94,7 @@ class RepaymentPaymentLine(models.Model):
         for record in self:
             record.is_payment_insufficient = record.payment_amount < record.repayment_id.expected_to_pay
 
-
+    # Compute payment status
     @api.depends('payment_amount', 'repayment_id.expected_to_pay')
     def _compute_payment_status(self):
         for record in self:
@@ -112,9 +112,12 @@ class RepaymentPaymentLine(models.Model):
     @api.model
     def create(self, vals):
         res = super(RepaymentPaymentLine, self).create(vals)
-        
         # Check and update state after payment
         repayment = res.repayment_id
+
+        # Check if customer has an invoice id
+        if not repayment.invoice_id:
+            raise UserError("Customer does not have an invoice ID")
 
         # Only mark as paid if total_paid matches or exceeds selling_price
         if repayment.total_paid >= repayment.selling_price:
@@ -134,6 +137,8 @@ class RepaymentPaymentLine(models.Model):
             # Send SMS if phone number exists
             if repayment.phone_no:
                 repayment._send_hubtel_sms(repayment.phone_no, sms_message, customer_name)
+                # Log message to chatter
+                repayment.message_post(body=f"Payment of GHS {payment_amount} has been made. SMS sent to customer")
                 _logger.info(f"Payment SMS sent to {repayment.phone_no}")
             else:
                 _logger.warning(f"Could not send payment SMS: No phone number for {customer_name}")
@@ -232,6 +237,7 @@ class RepaymentPaymentLine(models.Model):
 class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     unique_id = fields.Char(
         string="Reference",
@@ -470,7 +476,7 @@ class Repayment(models.Model):
 
 
     # Compute the repayment amount
-    @api.depends('payment_lines.payment_amount', 'expected_to_pay')
+    @api.depends('payment_lines.payment_amount')
     def _compute_repayment(self):
         for rec in self: 
             if rec.payment_lines:
@@ -659,11 +665,14 @@ class Repayment(models.Model):
                     'payment_url': response_data['data']['paymentUrl']
                 })
 
+                # Log message to chatter
+                self.message_post(body=f'Invoice generated successfully')
+
                 # Send notification to user
-                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-                notification_type = 'invoice'
-                message = {'msg': f'Invoice generated successfully'}
-                self.env['bus.bus']._sendone(channel, notification_type, message)
+                # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                # notification_type = 'invoice'
+                # message = {'msg': f'Invoice generated successfully'}
+                # self.env['bus.bus']._sendone(channel, notification_type, message)
             else:
                 _logger.info(f"Failed to create invoice: {response.text}")
                 raise UserError(f"Oops something went wrong while creating the invoice. Please try again later.")
@@ -694,7 +703,7 @@ class Repayment(models.Model):
     def action_create_invoice(self):
         # Check if the invoice already exists
         if self.invoice_id:
-            raise UserError("Invoice already created for this repayment.")
+            raise UserError("Invoice already created for this customer.")
 
         # Validate required fields
         if not self.invoice_no or not self.branch or not self.invoice_payment_method or not self.product_lines:
@@ -736,6 +745,9 @@ class Repayment(models.Model):
                 # Get customer name from res.partner
                 customer = self.env['res.partner'].browse(vals.get('customer_name'))
                 customer_name = customer.name if customer else "Customer"
+
+                # Log message in chatter
+                res.message_post(body=f"Sms message sent to {customer_name}")
 
                 # Prepare SMS message
                 sms_message = f"Dear {customer_name}, your account has been successfully created with GOB Technologies."
@@ -1025,12 +1037,11 @@ class Repayment(models.Model):
             
             if response.status_code in [200, 201]:
                 _logger.info(f"SMS sent successfully to {phone}")
-                
                 # Send notification to user
-                channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-                notification_type = 'notify_user'
-                message = {'msg': f'Account creation sms sent to {customer_name}'}
-                self.env['bus.bus']._sendone(channel, notification_type, message)
+                # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+                # notification_type = 'notify_user'
+                # message = {'msg': f'Account creation sms sent to {customer_name}'}
+                # self.env['bus.bus']._sendone(channel, notification_type, message)
                 return True
             else:
                 _logger.info(f"Failed to send SMS. Status: {response.status_code}, Response: {response.text}")

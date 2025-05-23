@@ -231,16 +231,16 @@
                                         />
                                     </group>
                                     <group>
-                                        <group>
-                                            <field name="mobile_money_statement" 
-                                                filename="mobile_money_statement_filename" 
-                                                widget="preview_attachment"
-                                            />
-                                            <field name="utility_bill" 
-                                                filename="utility_bill_filename" 
-                                                widget="preview_attachment"
-                                            />
-                                        </group>
+                                        <field name="mobile_money_statement" 
+                                            filename="mobile_money_statement_filename" 
+                                            widget="preview_attachment"
+                                            options="{'preview_image': true}"
+                                        />
+                                        <field name="utility_bill" 
+                                            filename="utility_bill_filename" 
+                                            widget="preview_attachment"
+                                            options="{'preview_image': true}"
+                                        />
                                     </group>
                                 </group>
                             </sheet>
@@ -293,6 +293,10 @@
                         </page>
                     </notebook>
                 </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" widget="mail_followers"/>
+                    <field name="message_ids" widget="mail_thread"/>
+                </div>
             </form>
         </field>
     </record>
