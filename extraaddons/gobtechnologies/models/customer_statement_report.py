@@ -335,7 +335,7 @@ class Repayment(models.Model):
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
     mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=True)
-    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=True)
+    utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=False)
 
     # Invoice field
     branch = fields.Selection([

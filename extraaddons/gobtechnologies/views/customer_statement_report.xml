@@ -50,7 +50,7 @@
                         string="Confirm" class="btn-primary" type="object"
                         invisible="state in ['paid']"
                     /> -->
-                    <button name="action_create_invoice" id="action_create_invoice" groups="gobtechnologies.group_repayment_accounts"
+                    <button name="action_create_invoice" id="action_create_invoice" groups="gobtechnologies.group_repayment_accounts, gobtechnologies.group_repayment_sales"
                         string="Create Invoice" class="btn-primary" type="object"
                         invisible="state in ['progress', 'paid']"
                     />

@@ -18,7 +18,7 @@ export class ChartDashboard extends Component{
             this.renderChart();
         })
     }
-
+    
     renderChart() {
         if (!window.Chart) {
             console.error("Chart.js not loaded yet!");
