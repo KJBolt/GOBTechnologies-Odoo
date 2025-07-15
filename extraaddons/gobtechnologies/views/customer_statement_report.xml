@@ -175,7 +175,7 @@
                                         <field name="repayment_frequency" nolabel="1" readonly="state in ['cancel', 'paid']"/>
 
                                         <div class="o_td_label">
-                                            <label for="head_of_gob_contact" string="GOB Phone Number"/>
+                                            <label for="head_of_gob_contact" string="Management Phone Number"/>
                                         </div>
                                         <field name="head_of_gob_contact" readonly="state in ['cancel', 'paid']" nolabel="1"/>
                                     </group>
@@ -388,7 +388,7 @@
     </record>
 
     <record id="action_repayment" model="ir.actions.act_window">
-        <field name="name">Hire Purchase</field>
+        <field name="name">SplitPay</field>
         <field name="res_model">repayment</field>
         <field name="view_mode">tree,form</field>
         <field name="help" type="html">
@@ -410,13 +410,13 @@
 
     <menuitem 
         id="menu_repayment_root" 
-        name="Hire Purchase"
+        name="SplitPay"
         sequence="1"
     />
 
     <menuitem 
         id="menu_repayment" 
-        name="Hire Purchase"
+        name="SplitPay"
         parent="menu_repayment_root"
         action="action_repayment"
     />

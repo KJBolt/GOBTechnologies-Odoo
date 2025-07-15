@@ -297,7 +297,7 @@ class Repayment(models.Model):
     paid_to_momo = fields.Float(string='Paid to Momo')
     guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
     guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
-    head_of_gob_contact = fields.Char(string='Head of GOB Contact', help="This phone number is used to send messages to GOB management", required=True)
+    head_of_gob_contact = fields.Char(string='Head of GOB Contact', help="This phone number is used to send messages to SplitPay management", required=True)
     state = fields.Selection(
         selection=PAYMENT_STATE,
         string="Status",

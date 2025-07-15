@@ -1,9 +1,9 @@
 {
-    'name': 'GOB Technologies',
+    'name': 'SplitPay',
     'version': '1.1',
     'sequence': 1,
     'module_type': 'official',
-    'summary': 'Customization for GOB Technologies',
+    'summary': 'Customization for SplitPay',
     'author': 'GeoIworks',
     'images': [],
     'depends': [
