@@ -22,7 +22,8 @@
         'views/res_config_settings_views.xml',
         'views/payment_notifications.xml',
         'data/ir_cron.xml',
-        'data/ir_sequence_data.xml'
+        'data/ir_sequence_data.xml',
+        'views/favicon_template.xml'
     ],
     'installable': True,
     'application': True,
