@@ -34,6 +34,7 @@
             'gobtechnologies/static/src/scss/custom_styles.scss',
             'gobtechnologies/static/src/js/static/src/js/hubtel_notification_systray.js',
             'gobtechnologies/static/src/xml/hubtel_notification_systray.xml',
+            'gobtechnologies/static/src/js/static/src/js/change_title.js',
         ],
     },
     'license': 'LGPL-3',
