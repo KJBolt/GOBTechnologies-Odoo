@@ -23,13 +23,14 @@
         'views/payment_notifications.xml',
         'data/ir_cron.xml',
         'data/ir_sequence_data.xml',
-        'views/favicon_template.xml'
+        'views/favicon_template.xml',
     ],
     'installable': True,
     'application': True,
     'assets': {
         'web.assets_frontend': [
             'gobtechnologies/static/src/scss/custom_styles.scss',
+            'gobtechnologies/static/src/js/static/src/js/change_title.js',
         ],
         'web.assets_backend': [
             'gobtechnologies/static/src/scss/custom_styles.scss',
