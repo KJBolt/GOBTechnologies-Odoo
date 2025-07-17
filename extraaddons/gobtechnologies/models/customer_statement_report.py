@@ -238,6 +238,7 @@ class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
     _inherit = ['mail.thread', 'mail.activity.mixin']
+    _rec_name = 'customer_name'
 
     unique_id = fields.Char(
         string="Reference",
@@ -297,7 +298,7 @@ class Repayment(models.Model):
     paid_to_momo = fields.Float(string='Paid to Momo')
     guarantor_name = fields.Many2one('res.partner', string='Guarantor Name', required=True)
     guarantor_contact = fields.Char(string='Guarantor Contact', required=True)
-    head_of_gob_contact = fields.Char(string='Head of GOB Contact', help="This phone number is used to send messages to SplitPay management", required=True)
+    head_of_gob_contact = fields.Char(string='Head of SplitPay Contact', help="This phone number is used to send messages to SplitPay management", required=True)
     state = fields.Selection(
         selection=PAYMENT_STATE,
         string="Status",
@@ -339,7 +340,7 @@ class Repayment(models.Model):
 
     # Invoice field
     branch = fields.Selection([
-        ('gob_technologies', 'GOB Technologies'),
+        ('splitpay', 'SplitPay'),
     ])
     invoice_id = fields.Char(string='Invoice ID', required=False)
     invoice_no = fields.Char(string='Invoice No', readonly=True, required=False, default=lambda self: self.env['ir.sequence'].next_by_code('invoice.ref'))
@@ -750,7 +751,7 @@ class Repayment(models.Model):
                 res.message_post(body=f"Sms message sent to {customer_name}")
 
                 # Prepare SMS message
-                sms_message = f"Dear {customer_name}, your account has been successfully created with GOB Technologies."
+                sms_message = f"Dear {customer_name}, your account has been successfully created with SplitPay."
 
                 # Send SMS
                 if res.phone_no and res.state == 'draft':
@@ -848,7 +849,7 @@ class Repayment(models.Model):
 
 
     # Computes the total paid
-    @api.depends('deposit', 'repayment')
+    @api.depends('deposit', 'repayment', 'selling_price', 'expected_to_pay')
     def _compute_total_paid(self):
         for record in self:
             if record.deposit and record.repayment:
@@ -859,7 +860,7 @@ class Repayment(models.Model):
                 record.total_paid = 0.0
 
     # Computes the outstnding loan
-    @api.depends('selling_price', 'total_paid', 'deposit')
+    @api.depends('selling_price', 'total_paid', 'deposit', 'expected_to_pay')
     def _compute_outstanding_loan(self):
         for record in self:
             if record.selling_price and record.total_paid:
@@ -1143,11 +1144,11 @@ class Repayment(models.Model):
                     if not recent_payments or total_recent_payment < repayment.expected_to_pay:
                         termination_warning_message = (
                             f"Dear {repayment.customer_name.name}, "
-                            f"your contract with GOB Technologies terminates, "
+                            f"your contract with SplitPay terminates, "
                             f"in 14 days if payment is not made today. "
                             f"We shall retrieve our item & refund 50% of your deposit into your momo account. "
                             f"Kindly dial *713*7678# to make immediate payment. "
-                            f"Thank you for choosing GOB Technologies."
+                            f"Thank you for choosing SplitPay."
                         )
                         
                         if repayment.phone_no:
@@ -1177,10 +1178,10 @@ class Repayment(models.Model):
                     if not recent_payments or total_recent_payment < repayment.expected_to_pay:
                         termination_warning_message_two = (
                             f"Dear {repayment.customer_name.name}, "
-                            f"your contract with GOB Technologies terminates, "
+                            f"your contract with SplitPay terminates, "
                             f"in 3 days if payment is not made today. "
                             f"We shall retrieve our item & refund 50% of your deposit into your momo account. "
-                            f"Kindly dial *713*7678# to make immediate payment. Thank you for choosing GOB Technologies. "
+                            f"Kindly dial *713*7678# to make immediate payment. Thank you for choosing SplitPay. "
                         )
                         if repayment.phone_no:
                             self._send_hubtel_sms(repayment.phone_no, termination_warning_message_two, repayment.customer_name.name)
@@ -1206,7 +1207,7 @@ class Repayment(models.Model):
                         customer_message = (
                             f"Dear {repayment.customer_name.name}, "
                             f"Due to non-payment for the past 14 days, "
-                            f"your contract with GOB Technologies has been terminated. "
+                            f"your contract with SplitPay has been terminated. "
                             f"Please contact our office immediately to resolve this issue."
                         )
 
@@ -1219,7 +1220,7 @@ class Repayment(models.Model):
                             f"As a guarantor, you may be contacted regarding this matter."
                         )
 
-                        # Message for Head of GOB Technologies
+                        # Message for Head of SplitPay
                         head_message = (
                             f"TERMINATION NOTICE\n"
                             f"Customer: {repayment.customer_name.name}\n"
@@ -1238,7 +1239,7 @@ class Repayment(models.Model):
                             self._send_hubtel_sms(repayment.guarantor_contact, guarantor_message, repayment.guarantor_name.name)
 
                         if repayment.head_of_gob_contact:
-                            self._send_hubtel_sms(repayment.head_of_gob_contact, head_message, "Head of GOB Technologies")
+                            self._send_hubtel_sms(repayment.head_of_gob_contact, head_message, "Head of SplitPay")
                         
                         _logger.info(
                             f"Sent final termination notice to {repayment.customer_name.name} "
@@ -1259,7 +1260,7 @@ class Repayment(models.Model):
                         f"this is a reminder that your payment of GHS {repayment.expected_to_pay} "
                         f"is due tomorrow {tomorrow.strftime('%d-%m-%Y')}. "
                         f"Kindly dial *713*7678# to pay now to avoid any penalties. "
-                        f"Thank you for choosing GOB Technologies."
+                        f"Thank you for choosing SplitPay."
                     )
                     
                     if repayment.phone_no:
@@ -1288,7 +1289,7 @@ class Repayment(models.Model):
                             f"Dear {repayment.customer_name.name}, "
                             f"your payment of GHS {repayment.expected_to_pay} was due yesterday. "
                             f"Kindly dial *713*7678# to pay now to avoid any penalties. "
-                            f"Thank you for choosing GOB Technologies."
+                            f"Thank you for choosing SplitPay."
                         )
                         
                         if repayment.phone_no:
@@ -1321,7 +1322,7 @@ class Repayment(models.Model):
                             f"Please note that a penalty fee of GHS 10 will be charged tomorrow "
                             f"if payment is not made today. "
                             f"Kindly dial *713*7678# to pay now. "
-                            f"Thank you for choosing GOB Technologies."
+                            f"Thank you for choosing SplitPay."
                         )
                         
                         if repayment.phone_no:
@@ -1366,7 +1367,7 @@ class Repayment(models.Model):
                             f"due to delayed payment. Your new outstanding balance is "
                             f"GHS {repayment.outstanding_loan}. "
                             f"Kindly dial *713*7678# to pay now. "
-                            f"Thank you for choosing GOB Technologies."
+                            f"Thank you for choosing SplitPay."
                         )
                         
                         if repayment.phone_no:
