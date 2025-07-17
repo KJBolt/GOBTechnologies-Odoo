@@ -336,7 +336,9 @@ class Repayment(models.Model):
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
     guarantor_ghana_card_back = fields.Binary(string='Guarantor Ghana Card Back', attachment=True, help="Upload Back Image", required=True)
     mobile_money_statement = fields.Binary(string='Mobile Money Statement', attachment=True, help="Upload Statement", required=True)
+    mobile_money_statement_filename = fields.Char(string='Statement Filename', compute='_compute_mobile_money_statement_filename', store=True)
     utility_bill = fields.Binary(string='Utility Bill', attachment=True, help="Upload Utility Bill", required=False)
+    utility_bill_filename = fields.Char(string='Utility Bill Filename', compute='_compute_utility_bill_filename', store=True)
 
     # Invoice field
     branch = fields.Selection([
@@ -351,6 +353,28 @@ class Repayment(models.Model):
     ], string='Payment Method', required=False)
     note = fields.Text(string='Note', required=False)
     payment_url = fields.Char(string="Payment Url", required=False)
+
+    # Compute mobile money statement filename
+    @api.depends('mobile_money_statement')
+    def _compute_mobile_money_statement_filename(self):
+        for record in self:
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'repayment'),
+                ('res_id', '=', record.id),
+                ('res_field', '=', 'mobile_money_statement')
+            ], limit=1)
+            record.mobile_money_statement_filename = attachment.name if attachment else False
+
+    # Compute utility bill filename
+    @api.depends('utility_bill')
+    def _compute_utility_bill_filename(self):
+        for record in self:
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'repayment'),
+                ('res_id', '=', record.id),
+                ('res_field', '=', 'utility_bill')
+            ], limit=1)
+            record.utility_bill_filename = attachment.name if attachment else False
 
 
     @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')
@@ -1433,4 +1457,6 @@ class Repayment(models.Model):
                 record.overdue_amount = record.expected_to_pay - total_paid
             else:
                 record.overdue_amount = 0.0
+
+
 
