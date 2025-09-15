@@ -260,6 +260,7 @@ class Repayment(models.Model):
         string='Products',
     )
 
+
     plan = fields.Selection([
         ('30 days', '30 days'),
         ('60 days', '60 days'),
