@@ -81,7 +81,7 @@
         <field name="name">Mark as Read</field>
         <field name="model_id" ref="model_hubtel_webhook"/>
         <field name="state">code</field>
-        <field name="code">model.mark_as_read(); action = env.ref('gobtechnologies.action_hubtel_webhook').read()[0]</field>
+        <field name="code">model.mark_as_read(); action = env.ref('gobtechnologies.action_hubtel_webhook').sudo().read()[0]</field>
     </record>
 
     <record id="action_hubtel_webhook" model="ir.actions.act_window">
