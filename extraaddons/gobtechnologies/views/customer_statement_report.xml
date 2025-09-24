@@ -234,7 +234,7 @@
                                         <!-- Mobile Money Statement -->
                                         <field name="mobile_money_statement" 
                                             filename="mobile_money_statement_filename" 
-                                            widget="preview_attachment"
+                                            widget="binary"
                                             options="{'preview_image': true}"
                                         />
                                         <field name="mobile_money_statement_filename" readonly="1" invisible="1"/>
@@ -242,7 +242,7 @@
                                         <!-- Utility Bill -->
                                         <field name="utility_bill" 
                                             filename="utility_bill_filename" 
-                                            widget="preview_attachment"
+                                            widget="binary"
                                             options="{'preview_image': true}"
                                         />
                                         <field name="utility_bill_filename" readonly="1" invisible="1"/>
