@@ -6,7 +6,6 @@ _logger = logging.getLogger(__name__)
 class HubtelWebhook(models.Model):
     _name = 'hubtel.webhook'
     _description = 'Hubtel Webhook'
-    _auto = True
     
     # Data Fields
     message = fields.Char(string='Message', readonly=True)
