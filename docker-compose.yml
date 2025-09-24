@@ -42,18 +42,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: johnbolt651@gmail.com
       PGADMIN_DEFAULT_PASSWORD: odoo
     volumes:
-      - pgadmin-data:/var/lib/pgadmin
-  nginx:
-    image: nginx:latest
-    restart: always
-    container_name: splitpaygh_nginx
-    depends_on:
-      - web
-    ports:
-      - "80:80"
-    volumes:
-      - .:/var/www/
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf  
+      - pgadmin-data:/var/lib/pgadmin 
 volumes:
   odoo-web-data:
   odoo-db-data:
