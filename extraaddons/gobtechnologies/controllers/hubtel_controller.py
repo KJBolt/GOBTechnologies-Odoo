@@ -20,6 +20,7 @@ class HubtelPaymentController(http.Controller):
 
 
     # Save invoice callback on webhook trigger
+    # Make sure the InvoiceId and phone no is an actual record in the database else the data wont be saved
     @http.route(['/web/hook/d69a6f81-e899-4509-85dd-8655a1543259'], type='json', auth="public", methods=['POST'], csrf=False)
     def save_payment_notifications(self, **kwargs):
         _logger.info("Webhook controller listener called")
