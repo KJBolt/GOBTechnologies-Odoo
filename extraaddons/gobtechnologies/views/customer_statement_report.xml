@@ -119,7 +119,9 @@
                     </group>
                     <group>
                         <group>
-                            <field name="outstanding_loan" readonly="1" no-open="1" />
+                            <field name="outstanding_loan" invisible="1"/>
+                            <field name="outstanding_loan_status" readonly="1" no-open="1" decoration-danger="outstanding_loan &lt; 0" decoration-success="outstanding_loan == 0" />
+                            <!-- <field name="outstanding_loan" readonly="1" no-open="1" decoration-danger="outstanding_loan &lt; 0" decoration-success="outstanding_loan == 0" /> -->
                         </group>
                     </group>
 
@@ -360,7 +362,7 @@
                 <field name="due_date" optional="HitreeRepaymentdden"/>
                 <field name="reminder" widget="badge" decoration-danger="reminder == 'Due'" decoration-success="reminder == 'Not Due'" optional="Hidden"/>
                 <field name="total_paid"/>
-                <field name="outstanding_loan"/>
+                <field name="outstanding_loan" decoration-danger="outstanding_loan &lt; 0" decoration-success="outstanding_loan == 0"/>
                 <field name="state" widget='badge' decoration-warning="state == 'progress'" decoration-success="state == 'paid'"/>
                 <field name="phone_no" optional="Hidden"/>
                 <field name="penalty" optional="Hidden"/>

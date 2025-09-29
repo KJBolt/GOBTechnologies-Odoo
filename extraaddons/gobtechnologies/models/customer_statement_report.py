@@ -117,7 +117,7 @@ class RepaymentPaymentLine(models.Model):
 
         # Check if customer has an invoice id
         if not repayment.invoice_id:
-            raise UserError("Customer does not have an invoice ID")
+            raise UserError("You can only add payment for customers with an invoice generated for them")
 
         # Only mark as paid if total_paid matches or exceeds selling_price
         if repayment.total_paid >= repayment.selling_price:
@@ -258,6 +258,7 @@ class Repayment(models.Model):
         'repayment.item.line',  # Related model
         'repayment_id',  # Field in the related model pointing back to this model
         string='Products',
+        required=True
     )
 
     plan = fields.Selection([
@@ -290,6 +291,7 @@ class Repayment(models.Model):
     reminder = fields.Char(string='Reminder', compute='_compute_reminder', store=True)
     total_paid = fields.Float(string='Total Paid', compute='_compute_total_paid', store=True)
     outstanding_loan = fields.Float(string='Outstanding Debt', compute='_compute_outstanding_loan', store=True)
+    outstanding_loan_status = fields.Text(string="Outstanding Debt", compute='_compute_outstanding_loan_status', store=True)
     phone_no = fields.Char(string='Phone No', required=True)
     penalty = fields.Integer(string='Penalty')
     discount = fields.Integer(string='Discount')
@@ -342,14 +344,14 @@ class Repayment(models.Model):
     # Invoice field
     branch = fields.Selection([
         ('splitpay', 'SplitPay'),
-    ])
+    ], string='Branch', required=True)
     invoice_id = fields.Char(string='Invoice ID', required=False)
     invoice_no = fields.Char(string='Invoice No', readonly=True, required=False, default=lambda self: self.env['ir.sequence'].next_by_code('invoice.ref'))
     invoice_payment_method = fields.Selection([
         # ('pay_at_once', 'Pay At Once'),
         # ('pay_in_installments', 'Pay In Installments'),
         ('auto_debit', 'Pay In Installments with Auto Debit')
-    ], string='Payment Method', required=False)
+    ], string='Payment Method', required=True)
     note = fields.Text(string='Note', required=False)
     payment_url = fields.Char(string="Payment Url", required=False)
 
@@ -375,7 +377,7 @@ class Repayment(models.Model):
             ], limit=1)
             record.utility_bill_filename = attachment.name if attachment else False
 
-
+    # Check the extensions of documents uploaded
     @api.constrains('customer_ghana_card_front', 'customer_ghana_card_back', 'guarantor_ghana_card_front', 'guarantor_ghana_card_back', 'mobile_money_statement', 'utility_bill')
     def _check_file_types(self):
         for record in self:
@@ -491,11 +493,42 @@ class Repayment(models.Model):
                         "File size must be less than 10MB!"
                     )
 
+    # Ensure products lines are not empty
+    @api.constrains('product_lines')
+    def _check_product_lines(self):
+        for record in self:
+            if not record.product_lines:
+                raise ValidationError('Please specify the products in the Invoice Details tab.')
 
     @api.depends('penalty_ids.penalty_amount')
     def _compute_total_penalties(self):
         for record in self:
             record.total_penalties = sum(record.penalty_ids.mapped('penalty_amount'))
+
+    # Outstanding loan status 
+    @api.depends('outstanding_loan')
+    def _compute_outstanding_loan_status(self):
+        for record in self:
+            if record.outstanding_loan < 0:
+                record.outstanding_loan_status = f'{record.outstanding_loan} (Overpaid)'
+            elif record.outstanding_loan == 0:
+                record.outstanding_loan_status = f'{record.outstanding_loan} (Paid)'
+            else:
+                record.outstanding_loan_status = record.outstanding_loan
+
+
+    # Ensure the selling price, deposit and expected to pay is not zero
+    @api.constrains('selling_price', 'deposit', 'expected_to_pay')
+    def _check_not_zero_values(self):
+        for record in self:
+            if record.selling_price == 0:
+                raise ValidationError('Please enter the selling price')
+
+            if record.deposit == 0:
+                raise ValidationError('Please enter the deposit')
+
+            if record.expected_to_pay == 0:
+                raise ValidationError('Please enter the expected to pay')
 
 
 
