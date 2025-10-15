@@ -1131,7 +1131,7 @@ class Repayment(models.Model):
         two_days_ago = today - timedelta(days=2)
         three_days_ago = today - timedelta(days=3)
         seven_days_ago = today - timedelta(days=7)
-        eleven_days_ago = today - timedelta(days=10)
+        ten_days_ago = today - timedelta(days=10)
         fourteen_days_ago = today - timedelta(days=14) 
         
         # Find all active repayments
@@ -1161,7 +1161,7 @@ class Repayment(models.Model):
                     should_send_penalty_reminder = two_days_ago == repayment.repayment_date
                     should_charge_penalty = three_days_ago == repayment.repayment_date
                     should_send_termination_warning = seven_days_ago >= repayment.repayment_date
-                    should_send_termination_warning_two = eleven_days_ago >= repayment.repayment_date
+                    should_send_termination_warning_two = ten_days_ago >= repayment.repayment_date
                     should_send_final_termination = fourteen_days_ago >= repayment.repayment_date
                 elif repayment.repayment_frequency == '7':
                     if repayment.repayment_date:
@@ -1173,7 +1173,7 @@ class Repayment(models.Model):
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
                     should_send_termination_warning = days_since_payment >= 7
-                    should_send_termination_warning_two = days_since_payment >= 11
+                    should_send_termination_warning_two = days_since_payment >= 10
                     should_send_final_termination = days_since_payment >= 14
                 elif repayment.repayment_frequency == '30':
                     if repayment.repayment_date:
@@ -1184,7 +1184,7 @@ class Repayment(models.Model):
                     should_send_penalty_reminder = days_since_payment == 2
                     should_charge_penalty = days_since_payment == 3
                     should_send_termination_warning = days_since_payment >= 7
-                    should_send_termination_warning_two = days_since_payment >= 11
+                    should_send_termination_warning_two = days_since_payment >= 10
                     should_send_final_termination = days_since_payment >= 14
                 elif repayment.repayment_frequency == '0':  # Cash
                     continue
@@ -1227,7 +1227,7 @@ class Repayment(models.Model):
                 if should_send_termination_warning_two and repayment.outstanding_loan > 0:
                     # Check if any payments were made in the last 10 days
                     recent_payments = repayment.payment_lines.filtered(
-                        lambda p: p.payment_date >= eleven_days_ago
+                        lambda p: p.payment_date >= ten_days_ago
                     )
                     total_recent_payment = sum(recent_payments.mapped('payment_amount'))
 

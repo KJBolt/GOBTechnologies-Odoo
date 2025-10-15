@@ -8,16 +8,24 @@ services:
       - db
     ports:
       - "8069:8069"
+      - "8072:8072"
     restart: always
     volumes:
       - odoo-web-data:/var/lib/odoo
-      # - ./config:/etc/odoo
+      #- ./config:/etc/odoo
       - ./extraaddons:/mnt/extra-addons
     environment:
       - PASSWORD_FILE=/run/secrets/postgresql_password
     secrets:
       - postgresql_password  
-    command: --dev=reload  # Auto-reloads Python code changes          
+    command: > 
+      odoo
+      --workers=2
+      --gevent-port=8072
+      --proxy-mode
+      --limit-time-cpu=60
+      --limit-time-real=120
+      --dev=reload          
   db:
     image: postgres:latest
     container_name: gobtechnologiesdb

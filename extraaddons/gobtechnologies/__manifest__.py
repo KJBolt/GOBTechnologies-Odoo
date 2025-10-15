@@ -24,6 +24,8 @@
         'data/ir_cron.xml',
         'data/ir_sequence_data.xml',
         'views/favicon_template.xml',
+        'views/product_page_template.xml',
+        'views/product_details_template.xml',
     ],
     'installable': True,
     'application': True,

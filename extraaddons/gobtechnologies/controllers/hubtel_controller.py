@@ -1,7 +1,6 @@
 from odoo import http
 from odoo.http import request
 import json
-import requests
 from werkzeug.wrappers import Response
 import logging
 import datetime
