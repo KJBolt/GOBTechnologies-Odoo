@@ -138,7 +138,11 @@ class RepaymentPaymentLine(models.Model):
             if repayment.phone_no:
                 repayment._send_hubtel_sms(repayment.phone_no, sms_message, customer_name)
                 # Log message to chatter
-                repayment.message_post(body=f"Payment of GHS {payment_amount} has been made. SMS sent to customer")
+                repayment.message_post(
+                    body=f"Payment of GHS {payment_amount} has been made. SMS sent to customer",
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note'
+                )
                 _logger.info(f"Payment SMS sent to {repayment.phone_no}")
             else:
                 _logger.warning(f"Could not send payment SMS: No phone number for {customer_name}")
@@ -237,7 +241,7 @@ class RepaymentPaymentLine(models.Model):
 class Repayment(models.Model):
     _name = 'repayment'
     _description = 'Repayment'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread']
     _rec_name = 'customer_name'
 
     unique_id = fields.Char(
@@ -723,7 +727,11 @@ class Repayment(models.Model):
                 })
 
                 # Log message to chatter
-                self.message_post(body=f'Invoice generated successfully')
+                self.message_post(
+                    body=f'Invoice generated successfully',
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note'
+                )
 
                 # Send notification to user
                 # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
@@ -808,7 +816,11 @@ class Repayment(models.Model):
                 _logger.info(f"Phone No, {res.phone_no}")
 
                 # Log message in chatter
-                res.message_post(body=f"Sms message sent to {customer_name}")
+                res.message_post(
+                    body=f"Sms message sent to {customer_name}",
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note'
+                )
 
                 # Prepare SMS message
                 sms_message = f"Dear {customer_name}, your account has been successfully created with SplitPay."
@@ -1116,11 +1128,13 @@ class Repayment(models.Model):
                 return False
             
         except Exception as e:
+            raise UserError(f"Failed to send SMS: {str(e)}")
+
             # Send toast message to user
-            channel = f"hubtel_notification_{self.env.user.partner_id.id}"
-            notification_type = 'sms_error'
-            message = {'msg': f'Something went wrong sending sms!'}
-            self.env['bus.bus']._sendone(channel, notification_type, message)
+            # channel = f"hubtel_notification_{self.env.user.partner_id.id}"
+            # notification_type = 'sms_error'
+            # message = {'msg': f'Something went wrong sending sms!'}
+            # self.env['bus.bus']._sendone(channel, notification_type, message)
 
             return False
 

@@ -5,14 +5,24 @@
         <field name="active">False</field>
     </record>
 
+    <!-- Hide Dashboard Menu Item -->
+    <record id="spreadsheet_dashboard.spreadsheet_dashboard_menu_root" model="ir.ui.menu">
+        <field name="active">False</field>
+    </record>
+
+    <!-- Hide Link Tracker Menu Item -->
+    <record id="utm.menu_link_tracker_root" model="ir.ui.menu">
+        <field name="active">False</field>
+    </record>
+    
     <!-- Show Contacts Menu Item -->
     <record id="contacts.menu_contacts" model="ir.ui.menu">
         <field name="active">True</field>
     </record>
 
-    <!-- Show Inventory Menu Item -->
-    <!-- <record id="stock.menu_stock_root" model="ir.ui.menu">
-        <field name="active">False</field>
-    </record> -->
+    <!-- Hide Apps for all users except Administrators (System) -->
+    <record id="base.menu_management" model="ir.ui.menu">
+        <field name="groups_id" eval="[(6, 0, [ref('base.group_system')])]"/>
+    </record>
 
 </odoo>

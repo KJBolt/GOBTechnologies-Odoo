@@ -10,7 +10,10 @@
         'base_setup',
         'web',
         'base', 
-        'contacts'
+        'contacts',
+        'website',
+        'account',
+        'stock'
     ],
     'data': [
         'security/groups.xml',
