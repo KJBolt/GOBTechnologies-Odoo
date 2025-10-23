@@ -26,6 +26,7 @@
         'views/favicon_template.xml',
         'views/product_page_template.xml',
         'views/product_details_template.xml',
+        'views/product_template_inherit.xml'
     ],
     'installable': True,
     'application': True,

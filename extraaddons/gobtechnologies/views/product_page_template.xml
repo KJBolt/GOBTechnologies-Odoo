@@ -66,31 +66,34 @@
                                             </h6>
                                         </div> -->
 
-                                        <!-- Product Attributes -->
-                                        <t t-if="product.attribute_line_ids">
-                                            <div class="mb-3">
-                                                <div class="attributes-container">
-                                                    <t t-foreach="product.attribute_line_ids" t-as="attribute_line">
-                                                        <div class="attribute-group mb-2">
-                                                            <!-- <strong><t t-esc="attribute_line.attribute_id.name"/>:</strong> -->
-                                                            <div class="d-flex flex-wrap gap-1 mt-1">
-                                                                <t t-foreach="attribute_line.product_template_value_ids" t-as="ptav">
-                                                                    <t t-set="attribute_price" t-value="ptav.price_extra"/>
-                                                                    <span class="badge bg-light text-dark position-relative">
-                                                                        <t t-esc="ptav.name"/>
-                                                                        <t t-if="attribute_price != 0">
-                                                                            <span class="attribute-price-difference">
-                                                                                (<t t-if="attribute_price > 0"></t><t t-esc="product.currency_id.symbol"/><t t-esc="attribute_price"/>)
-                                                                            </span>
-                                                                        </t>
-                                                                    </span>
-                                                                </t>
-                                                            </div>
-                                                        </div>
-                                                    </t>
-                                                </div>
+                                        <!-- Product Price -->
+                                        <div>
+                                            <h4 class="text-primary fw-bold fs-6">Payment Details</h4>
+                                            <div class="payment_plan">
+                                                <t t-if="product.plan_60_total">
+                                                    <div class="d-flex justify-content-between align-items-center my-0 fs-6">
+                                                        <p>60 days plan</p>
+                                                        <p>---------------------</p>
+                                                        <p><t t-esc="product.currency_id.symbol"></t> <t t-esc="product.plan_60_total"/></p>
+                                                    </div>
+                                                </t>
+                                                <t t-if="product.plan_90_total">
+                                                    <div class="d-flex justify-content-between align-items-center my-0">
+                                                        <p>90 days plan</p>
+                                                        <p>---------------------</p>
+                                                        <p><t t-esc="product.currency_id.symbol"></t> <t t-esc="product.plan_90_total"/></p>
+                                                    </div>
+                                                </t>
+                                                <t t-if="product.plan_120_total">
+                                                    <div class="d-flex justify-content-between align-items-center my-0">
+                                                        <p>120 days plan</p>
+                                                        <p>---------------------</p>
+                                                        <p><t t-esc="product.currency_id.symbol"></t> <t t-esc="product.plan_120_total"/></p>
+                                                    </div>
+                                                </t>
                                             </div>
-                                        </t>
+                                        </div>
+                                        
                                         
                                         <!-- Action buttons -->
                                         <div class="mt-auto">

@@ -803,6 +803,10 @@ class Repayment(models.Model):
                 customer = self.env['res.partner'].browse(vals.get('customer_name'))
                 customer_name = customer.name if customer else "Customer"
 
+                _logger.info(f"Customer Name, {customer_name}")
+                _logger.info(f"Customer, {customer}")
+                _logger.info(f"Phone No, {res.phone_no}")
+
                 # Log message in chatter
                 res.message_post(body=f"Sms message sent to {customer_name}")
 
